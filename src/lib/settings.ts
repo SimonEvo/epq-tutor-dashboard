@@ -2,10 +2,11 @@ const KEY = 'epq_app_settings'
 
 export interface AppSettings {
   wecomWebhookUrl: string
-  claudeApiKey: string
+  aiApiKey: string
+  aiModel: string
 }
 
-const DEFAULTS: AppSettings = { wecomWebhookUrl: '', claudeApiKey: '' }
+const DEFAULTS: AppSettings = { wecomWebhookUrl: '', aiApiKey: '', aiModel: 'qwen3.5-flash' }
 
 export function getSettings(): AppSettings {
   try {

@@ -8,8 +8,11 @@ import StudentDetailPage from '@/pages/StudentDetailPage'
 import EditStudentPage from '@/pages/EditStudentPage'
 import NewSessionPage from '@/pages/NewSessionPage'
 import EditSessionPage from '@/pages/EditSessionPage'
+import SessionReportPage from '@/pages/SessionReportPage'
+import ProgressReportPage from '@/pages/ProgressReportPage'
 import SupervisorsPage from '@/pages/SupervisorsPage'
 import SupervisorDetailPage from '@/pages/SupervisorDetailPage'
+import SettingsPage from '@/pages/SettingsPage'
 import AppLayout from '@/components/layout/AppLayout'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -44,9 +47,11 @@ export default function App() {
           <Route path="/students/:id/edit" element={<EditStudentPage />} />
           <Route path="/students/:id/session/new" element={<NewSessionPage />} />
           <Route path="/students/:id/session/:sessionId/edit" element={<EditSessionPage />} />
+          <Route path="/students/:id/session/:sessionId/report" element={<SessionReportPage />} />
+          <Route path="/students/:id/report" element={<ProgressReportPage />} />
           <Route path="/supervisors" element={<SupervisorsPage />} />
           <Route path="/supervisors/:id" element={<SupervisorDetailPage />} />
-          {/* Export — coming next */}
+          <Route path="/settings" element={<SettingsPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

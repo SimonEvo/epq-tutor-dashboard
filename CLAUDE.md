@@ -91,7 +91,7 @@ npm run lint
 npm run typecheck
 ```
 
-> **Note:** Commands above reflect the intended setup. Verify against `package.json` as scripts are added during development.
+> **Workflow:** After every code change, always run `npm run deploy` to push the updated build to GitHub Pages. The user verifies changes via the live GitHub Pages URL, not locally.
 
 ---
 

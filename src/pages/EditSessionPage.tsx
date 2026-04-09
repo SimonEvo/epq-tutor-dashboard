@@ -15,6 +15,7 @@ export default function EditSessionPage() {
   const [date, setDate] = useState(session?.date ?? '')
   const [time, setTime] = useState(session?.time ?? '')
   const [duration, setDuration] = useState(session?.durationMinutes ?? 60)
+  const [title, setTitle] = useState(session?.title ?? '')
   const [summary, setSummary] = useState(session?.summary ?? '')
   const [homework, setHomework] = useState(session?.homework ?? '')
   const [transcript, setTranscript] = useState(session?.transcript ?? '')
@@ -41,6 +42,7 @@ export default function EditSessionPage() {
         date,
         time: time || undefined,
         durationMinutes: duration,
+        title: title.trim(),
         summary: summary.trim(),
         homework: homework.trim(),
         transcript: transcript.trim(),
@@ -116,6 +118,16 @@ export default function EditSessionPage() {
               onChange={e => setDuration(Number(e.target.value))} className={inputCls} required />
           </Field>
         </div>
+
+        <Field label="Title">
+          <input
+            type="text"
+            value={title}
+            onChange={e => setTitle(e.target.value)}
+            placeholder="e.g. SA #3"
+            className={inputCls}
+          />
+        </Field>
 
         <Field label="Summary" hint="What did you cover in this session?">
           <textarea value={summary} onChange={e => setSummary(e.target.value)}

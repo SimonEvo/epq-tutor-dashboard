@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useParams, Link } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import { useStudentStore } from '@/stores/studentStore'
 import { EPQ_MILESTONES } from '@/config'
-import type { Student, MilestoneStatus, SessionType, PersonalEntry } from '@/types'
+import type { Student, MilestoneStatus, SessionType, SessionRecord, PersonalEntry } from '@/types'
 
 const SESSION_LABEL: Record<SessionType, string> = {
   SA_MEETING: 'SA',
@@ -33,13 +33,13 @@ const MILESTONE_ICON: Record<MilestoneStatus, string> = {
 
 export default function StudentDetailPage() {
   const { id } = useParams<{ id: string }>()
-  const navigate = useNavigate()
   const { students, saveStudent, supervisors } = useStudentStore()
 
   const [student, setStudent] = useState<Student | null>(null)
   const [saving, setSaving] = useState(false)
   const [editingBriefNote, setEditingBriefNote] = useState(false)
   const [briefNoteDraft, setBriefNoteDraft] = useState('')
+  const [sessionFilter, setSessionFilter] = useState<'all' | SessionType>('all')
   const [expandedSession, setExpandedSession] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [expandedEntry, setExpandedEntry] = useState<string | null>(null)
@@ -169,6 +169,40 @@ export default function StudentDetailPage() {
   }
 
   const sortedSessions = [...student.sessions].sort((a, b) => b.date.localeCompare(a.date))
+
+  // Compute per-type chronological numbers for display
+  const sessionNumbers: Record<string, number> = {}
+  const byType: Partial<Record<SessionType, typeof student.sessions>> = {}
+  for (const s of [...student.sessions].sort((a, b) => a.date.localeCompare(b.date))) {
+    if (!byType[s.type]) byType[s.type] = []
+    byType[s.type]!.push(s)
+  }
+  for (const list of Object.values(byType)) {
+    list!.forEach((s, i) => { sessionNumbers[s.id] = i + 1 })
+  }
+
+  const TYPE_PREFIX: Record<SessionType, string> = {
+    SA_MEETING: 'SA',
+    TA_MEETING: 'TA',
+    THEORY: 'TE',
+  }
+
+  function sessionDisplayTitle(s: SessionRecord) {
+    if (s.title) return s.title
+    return `${TYPE_PREFIX[s.type]} #${sessionNumbers[s.id]}`
+  }
+
+  // Last (past) and Next (future) sessions
+  const todayDate = new Date().toISOString().slice(0, 10)
+  const pastSessions = sortedSessions.filter(s => s.date <= todayDate)
+  const futureSessions = sortedSessions.filter(s => s.date > todayDate)
+  const lastSession = pastSessions[0] ?? null
+  const nextSession = futureSessions.length > 0 ? futureSessions[futureSessions.length - 1] : null
+
+  const filteredSessions = sessionFilter === 'all'
+    ? sortedSessions
+    : sortedSessions.filter(s => s.type === sessionFilter)
+
   const saRemaining = student.saHoursTotal - student.saHoursUsed
   const supervisor = supervisors.find(s => s.id === student.supervisorId)
 
@@ -195,6 +229,12 @@ export default function StudentDetailPage() {
             className="bg-indigo-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
           >
             + Add Session
+          </Link>
+          <Link
+            to={`/students/${student.id}/report`}
+            className="text-sm px-4 py-2 rounded-lg border border-indigo-200 text-indigo-600 hover:bg-indigo-50 transition-colors"
+          >
+            生成进度报告
           </Link>
           <Link
             to={`/students/${student.id}/edit`}
@@ -246,12 +286,26 @@ export default function StudentDetailPage() {
         <InfoCard label="SA Hours" value={`${saRemaining} / ${student.saHoursTotal}`} alert={saRemaining <= 2} />
         <InfoCard label="Sessions" value={String(student.sessions.length)} />
         <InfoCard label="EPQ Progress" value={`${progress}%`} />
-        <InfoCard
-          label="Last Session"
-          value={sortedSessions[0]
-            ? `${Math.floor((Date.now() - new Date(sortedSessions[0].date).getTime()) / 86400000)}d ago`
-            : '—'}
-        />
+        <div className="rounded-xl border border-gray-200 bg-white p-3">
+          <div className="flex flex-col gap-1.5">
+            <div>
+              <p className="text-xs text-gray-400 mb-0.5">Last Session</p>
+              <p className="text-base font-semibold text-gray-900">
+                {lastSession
+                  ? `${Math.floor((Date.now() - new Date(lastSession.date).getTime()) / 86400000)}d ago`
+                  : '—'}
+              </p>
+            </div>
+            <div className="border-t border-gray-100 pt-1.5">
+              <p className="text-xs text-gray-400 mb-0.5">Next Session</p>
+              <p className="text-base font-semibold text-indigo-600">
+                {nextSession
+                  ? `in ${Math.ceil((new Date(nextSession.date).getTime() - Date.now()) / 86400000)}d`
+                  : '—'}
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Student info table */}
@@ -493,29 +547,54 @@ export default function StudentDetailPage() {
 
       {/* Sessions */}
       <div className="bg-white rounded-xl border border-gray-200 p-4">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-3">
           <h2 className="font-medium text-gray-900 text-sm">Session Records ({student.sessions.length})</h2>
           <Link to={`/students/${student.id}/session/new`} className="text-xs text-indigo-600 hover:underline">+ Add</Link>
         </div>
 
-        {sortedSessions.length === 0 ? (
+        {/* Filter tabs */}
+        <div className="flex gap-1.5 mb-4">
+          {([
+            ['all', `All (${student.sessions.length})`],
+            ['SA_MEETING', `SA (${student.sessions.filter(s => s.type === 'SA_MEETING').length})`],
+            ['TA_MEETING', `TA (${student.sessions.filter(s => s.type === 'TA_MEETING').length})`],
+            ['THEORY', `Taught Element (${student.sessions.filter(s => s.type === 'THEORY').length})`],
+          ] as const).map(([val, label]) => (
+            <button
+              key={val}
+              onClick={() => setSessionFilter(val)}
+              className={`text-xs px-3 py-1 rounded-full border transition-colors ${
+                sessionFilter === val
+                  ? 'bg-indigo-600 text-white border-indigo-600'
+                  : 'text-gray-500 border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {filteredSessions.length === 0 ? (
           <p className="text-sm text-gray-400 py-4 text-center">No sessions recorded yet.</p>
         ) : (
           <div className="flex flex-col gap-3">
-            {sortedSessions.map(session => (
+            {filteredSessions.map(session => (
               <div key={session.id} className="border border-gray-100 rounded-xl p-3 hover:border-gray-200 transition-colors">
                 <div
                   className="flex items-center gap-2 cursor-pointer"
                   onClick={() => setExpandedSession(expandedSession === session.id ? null : session.id)}
                 >
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${SESSION_COLOR[session.type]}`}>
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${SESSION_COLOR[session.type]}`}>
                     {SESSION_LABEL[session.type]}
                   </span>
-                  <span className="text-sm text-gray-700">
+                  <span className="text-sm font-medium text-gray-800 truncate">
+                    {sessionDisplayTitle(session)}
+                  </span>
+                  <span className="text-xs text-gray-400 shrink-0">
                     {session.date}{session.time && ` ${session.time}`}
                   </span>
-                  <span className="text-xs text-gray-400">{session.durationMinutes} min</span>
-                  <span className="ml-auto text-gray-300 text-xs">{expandedSession === session.id ? '▲' : '▼'}</span>
+                  <span className="text-xs text-gray-400 shrink-0">{session.durationMinutes} min</span>
+                  <span className="ml-auto text-gray-300 text-xs shrink-0">{expandedSession === session.id ? '▲' : '▼'}</span>
                 </div>
                 {session.summary && (
                   <p className="text-sm text-gray-600 mt-2 line-clamp-1">{session.summary}</p>
@@ -526,7 +605,13 @@ export default function StudentDetailPage() {
                     {session.homework && <Detail label="Homework / Next steps" content={session.homework} />}
                     {session.transcript && <Detail label="Transcript" content={session.transcript} mono />}
                     {session.privateNotes && <Detail label="🔒 Private notes" content={session.privateNotes} />}
-                    <div className="flex gap-2 pt-1">
+                    <div className="flex gap-2 pt-1 flex-wrap">
+                      <Link
+                        to={`/students/${student.id}/session/${session.id}/report`}
+                        className="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+                      >
+                        生成课后报告
+                      </Link>
                       <Link
                         to={`/students/${student.id}/session/${session.id}/edit`}
                         className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
@@ -565,15 +650,6 @@ export default function StudentDetailPage() {
         )}
       </div>
 
-      {/* Export */}
-      <div className="mt-4 flex justify-end">
-        <button
-          onClick={() => navigate(`/students/${student.id}/export`)}
-          className="text-sm text-gray-500 border border-gray-200 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors"
-        >
-          Export summary →
-        </button>
-      </div>
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useStudentStore } from '@/stores/studentStore'
 import type { SessionRecord, SessionType, Student } from '@/types'
@@ -7,7 +7,21 @@ function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7)
 }
 
-const today = new Date().toISOString().slice(0, 10)
+const todayStr = new Date().toISOString().slice(0, 10)
+
+const TYPE_PREFIX: Record<SessionType, string> = {
+  SA_MEETING: 'SA',
+  TA_MEETING: 'TA',
+  THEORY: 'TE',
+}
+
+function computeAutoTitle(sessions: SessionRecord[], type: SessionType, date: string): string {
+  const sorted = sessions
+    .filter(s => s.type === type)
+    .sort((a, b) => a.date.localeCompare(b.date))
+  const pos = sorted.filter(s => s.date <= date).length + 1
+  return `${TYPE_PREFIX[type]} #${pos}`
+}
 
 export default function NewSessionPage() {
   const { id } = useParams<{ id: string }>()
@@ -17,15 +31,24 @@ export default function NewSessionPage() {
   const student = students.find(s => s.id === id)
 
   const [type, setType] = useState<SessionType>('SA_MEETING')
-  const [date, setDate] = useState(today)
+  const [date, setDate] = useState(todayStr)
   const [time, setTime] = useState('')
   const [duration, setDuration] = useState(60)
+  const [title, setTitle] = useState(() =>
+    student ? computeAutoTitle(student.sessions, 'SA_MEETING', todayStr) : 'SA #1'
+  )
   const [summary, setSummary] = useState('')
   const [homework, setHomework] = useState('')
   const [transcript, setTranscript] = useState('')
   const [privateNotes, setPrivateNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (student) {
+      setTitle(computeAutoTitle(student.sessions, type, date))
+    }
+  }, [type, date, student])
 
   if (!student) {
     return (
@@ -46,6 +69,7 @@ export default function NewSessionPage() {
         date,
         time: time || undefined,
         durationMinutes: duration,
+        title: title.trim(),
         summary: summary.trim(),
         homework: homework.trim(),
         transcript: transcript.trim(),
@@ -129,6 +153,15 @@ export default function NewSessionPage() {
               onChange={e => setDuration(Number(e.target.value))} className={inputCls} required />
           </Field>
         </div>
+
+        <Field label="Title" hint="Auto-generated from type and date — edit if needed">
+          <input
+            type="text"
+            value={title}
+            onChange={e => setTitle(e.target.value)}
+            className={inputCls}
+          />
+        </Field>
 
         <Field label="Summary" hint="What did you cover in this session?">
           <textarea

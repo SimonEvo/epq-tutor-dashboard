@@ -26,6 +26,7 @@ export interface SessionRecord {
   date: string // ISO date string YYYY-MM-DD
   time?: string // HH:MM
   durationMinutes: number
+  title?: string  // e.g. "SA #3" — auto-generated at creation, editable
   summary: string
   homework: string
   transcript: string
@@ -62,6 +63,7 @@ export interface Student {
   availabilityNote: string  // e.g. "Exam prep until June"
   briefNote: string         // one-liner shown on card
   privateNotes: string      // never exported
+  tencentDocUrl?: string    // shared Tencent Doc URL for this student's WeChat group
   milestones: MilestoneProgress
   sessions: SessionRecord[]
   createdAt: string

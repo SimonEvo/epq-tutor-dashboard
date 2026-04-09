@@ -34,6 +34,7 @@ export default function AppLayout() {
         <div className="flex items-center gap-5">
           <Link to="/" className="font-semibold text-gray-900 text-sm">📚 EPQ Tutor Dashboard</Link>
           <Link to="/supervisors" className="text-xs text-gray-400 hover:text-gray-700 transition-colors">Supervisors</Link>
+          <Link to="/settings" className="text-xs text-gray-400 hover:text-gray-700 transition-colors">Settings</Link>
         </div>
         <div className="flex items-center gap-4">
           <BeijingClock />

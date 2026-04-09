@@ -20,6 +20,7 @@ export interface StudentFormState {
   availabilityNote: string; setAvailabilityNote: (v: string) => void
   briefNote: string; setBriefNote: (v: string) => void
   privateNotes: string; setPrivateNotes: (v: string) => void
+  tencentDocUrl: string; setTencentDocUrl: (v: string) => void
   selectedTags: string[]; setSelectedTags: (v: string[]) => void
   supervisorId: string; setSupervisorId: (v: string) => void
 }
@@ -41,6 +42,7 @@ export function useStudentFormState(initial?: Partial<Student>): StudentFormStat
   const [availabilityNote, setAvailabilityNote] = useState(initial?.availabilityNote ?? '')
   const [briefNote, setBriefNote] = useState(initial?.briefNote ?? '')
   const [privateNotes, setPrivateNotes] = useState(initial?.privateNotes ?? '')
+  const [tencentDocUrl, setTencentDocUrl] = useState(initial?.tencentDocUrl ?? '')
   const [selectedTags, setSelectedTags] = useState<string[]>(initial?.tags ?? [])
   const [supervisorId, setSupervisorId] = useState(initial?.supervisorId ?? '')
 
@@ -54,7 +56,8 @@ export function useStudentFormState(initial?: Partial<Student>): StudentFormStat
     topic, setTopic, overview, setOverview, saTotal, setSaTotal,
     supervisorId, setSupervisorId,
     availabilityNote, setAvailabilityNote, briefNote, setBriefNote,
-    privateNotes, setPrivateNotes, selectedTags, setSelectedTags,
+    privateNotes, setPrivateNotes, tencentDocUrl, setTencentDocUrl,
+    selectedTags, setSelectedTags,
   }
 }
 
@@ -78,6 +81,7 @@ export function buildStudentFromForm(f: StudentFormState): Omit<Student, 'id' | 
     availabilityNote: f.availabilityNote.trim(),
     briefNote: f.briefNote.trim(),
     privateNotes: f.privateNotes.trim(),
+    tencentDocUrl: f.tencentDocUrl.trim() || undefined,
   }
 }
 
@@ -254,6 +258,10 @@ export default function StudentFormFields({ state, globalTags, globalRounds, sup
       <Field label="Availability Note" hint="e.g. Exam prep until June — will resume in July">
         <textarea value={state.availabilityNote} onChange={e => state.setAvailabilityNote(e.target.value)}
           placeholder="Optional" rows={2} className={inputCls} />
+      </Field>
+      <Field label="腾讯文档链接" hint="该学生家长群的共享文档地址，用于生成报告后快速跳转">
+        <input value={state.tencentDocUrl} onChange={e => state.setTencentDocUrl(e.target.value)}
+          placeholder="https://docs.qq.com/doc/…" className={inputCls} />
       </Field>
       <Field label="Private Notes" hint="Never exported or shared">
         <textarea value={state.privateNotes} onChange={e => state.setPrivateNotes(e.target.value)}

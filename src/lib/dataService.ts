@@ -4,23 +4,35 @@
  */
 import { getClient } from './githubClient'
 import { GITHUB_CONFIG } from '@/config'
-import type { Student, TagsConfig } from '@/types'
+import type { Student, Supervisor, TagsConfig } from '@/types'
 
 const { owner, dataRepo } = GITHUB_CONFIG
 
 // ─── Internal helpers ────────────────────────────────────────────────────────
 
+function base64Decode(b64: string): string {
+  const binary = atob(b64.replace(/\n/g, ''))
+  const bytes = Uint8Array.from(binary, c => c.charCodeAt(0))
+  return new TextDecoder('utf-8').decode(bytes)
+}
+
+function base64Encode(str: string): string {
+  const bytes = new TextEncoder().encode(str)
+  const binary = Array.from(bytes, b => String.fromCharCode(b)).join('')
+  return btoa(binary)
+}
+
 async function getFile(path: string): Promise<{ content: string; sha: string }> {
   const client = getClient()
   const response = await client.repos.getContent({ owner, repo: dataRepo, path })
   const data = response.data as { content: string; sha: string }
-  const content = atob(data.content.replace(/\n/g, ''))
+  const content = base64Decode(data.content)
   return { content, sha: data.sha }
 }
 
 async function putFile(path: string, content: string, sha?: string, message?: string) {
   const client = getClient()
-  const encoded = btoa(unescape(encodeURIComponent(content)))
+  const encoded = base64Encode(content)
   await client.repos.createOrUpdateFileContents({
     owner,
     repo: dataRepo,
@@ -83,6 +95,26 @@ export async function deleteStudent(id: string): Promise<void> {
   })
 }
 
+// ─── Rounds ──────────────────────────────────────────────────────────────────
+
+export async function getRounds(): Promise<string[]> {
+  try {
+    const { content } = await getFile('config/rounds.json')
+    return JSON.parse(content) as string[]
+  } catch {
+    return []
+  }
+}
+
+export async function saveRounds(rounds: string[]): Promise<void> {
+  let sha: string | undefined
+  try {
+    const existing = await getFile('config/rounds.json')
+    sha = existing.sha
+  } catch { /* first time */ }
+  await putFile('config/rounds.json', JSON.stringify(rounds, null, 2), sha, 'update rounds')
+}
+
 // ─── Tags ────────────────────────────────────────────────────────────────────
 
 export async function getTags(): Promise<string[]> {
@@ -104,6 +136,49 @@ export async function saveTags(tags: string[]): Promise<void> {
     // first time
   }
   await putFile('config/tags.json', JSON.stringify({ tags }, null, 2), sha, 'update tags')
+}
+
+// ─── Supervisors ─────────────────────────────────────────────────────────────
+
+export async function listSupervisors(): Promise<Supervisor[]> {
+  const client = getClient()
+  try {
+    const response = await client.repos.getContent({ owner, repo: dataRepo, path: 'supervisors' })
+    const files = response.data as Array<{ name: string; type: string }>
+    const jsonFiles = files.filter(f => f.type === 'file' && f.name.endsWith('.json'))
+    const supervisors = await Promise.all(
+      jsonFiles.map(async (f) => {
+        const { content } = await getFile(`supervisors/${f.name}`)
+        return JSON.parse(content) as Supervisor
+      })
+    )
+    return supervisors.sort((a, b) => a.name.localeCompare(b.name))
+  } catch (e: unknown) {
+    if ((e as { status?: number }).status === 404) return []
+    throw e
+  }
+}
+
+export async function saveSupervisor(supervisor: Supervisor): Promise<void> {
+  const path = `supervisors/${supervisor.id}.json`
+  let sha: string | undefined
+  try {
+    const existing = await getFile(path)
+    sha = existing.sha
+  } catch { /* new file */ }
+  await putFile(path, JSON.stringify(supervisor, null, 2), sha, `update supervisor ${supervisor.name}`)
+}
+
+export async function deleteSupervisor(id: string): Promise<void> {
+  const client = getClient()
+  const { sha } = await getFile(`supervisors/${id}.json`)
+  await client.repos.deleteFile({
+    owner,
+    repo: dataRepo,
+    path: `supervisors/${id}.json`,
+    message: `delete supervisor ${id}`,
+    sha,
+  })
 }
 
 // ─── Auth check ──────────────────────────────────────────────────────────────

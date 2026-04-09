@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script>
+    // GitHub Pages 404 redirect: send any direct URL back to index with hash routing
+    var base = '/epq-tutor-dashboard';
+    var path = window.location.pathname.replace(base, '') || '/';
+    window.location.replace(base + '/#' + path);
+  </script>
+</head>
+<body></body>
+</html>

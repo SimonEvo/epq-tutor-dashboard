@@ -1,23 +1,29 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useStudentStore } from '@/stores/studentStore'
 import StudentCard from '@/components/StudentCard'
 import type { Student } from '@/types'
 
 export default function DashboardPage() {
-  const { students, tags, isLoading, error, fetchAll, fetchTags } = useStudentStore()
+  const { students, tags, rounds, supervisors, isLoading, error, fetchAll, fetchTags, fetchRounds, fetchSupervisors } = useStudentStore()
   const [selectedTag, setSelectedTag] = useState<string>('')
+  const [selectedRound, setSelectedRound] = useState<string>('')
+  const [selectedSupervisor, setSelectedSupervisor] = useState<string>('')
   const [sortBy, setSortBy] = useState<'name' | 'lastSession'>('lastSession')
 
   useEffect(() => {
     fetchAll()
     fetchTags()
-  }, [fetchAll, fetchTags])
+    fetchRounds()
+    fetchSupervisors()
+  }, [fetchAll, fetchTags, fetchRounds, fetchSupervisors])
 
   const filtered = students
     .filter(s => !selectedTag || s.tags.includes(selectedTag))
+    .filter(s => !selectedRound || s.submissionRound === selectedRound)
+    .filter(s => !selectedSupervisor || s.supervisorId === selectedSupervisor)
     .sort((a, b) => {
       if (sortBy === 'name') return a.name.localeCompare(b.name)
-      // Sort by last session date ascending (oldest first = needs attention)
       const lastA = getLastSession(a)
       const lastB = getLastSession(b)
       if (!lastA) return -1
@@ -32,51 +38,104 @@ export default function DashboardPage() {
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-semibold text-gray-900">
-          Students <span className="text-gray-400 font-normal text-lg">({students.length})</span>
+          Students <span className="text-gray-400 font-normal text-lg">({filtered.length}{filtered.length !== students.length ? ` / ${students.length}` : ''})</span>
         </h1>
-        <a
-          href="new"
+        <Link
+          to="/students/new"
           className="bg-indigo-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
         >
           + Add Student
-        </a>
+        </Link>
       </div>
 
-      <div className="flex gap-3 mb-6 flex-wrap">
-        <select
-          value={sortBy}
-          onChange={e => setSortBy(e.target.value as 'name' | 'lastSession')}
-          className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white"
-        >
-          <option value="lastSession">Sort: Needs attention first</option>
-          <option value="name">Sort: Name A–Z</option>
-        </select>
-
-        <div className="flex gap-2 flex-wrap">
-          <button
-            onClick={() => setSelectedTag('')}
-            className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
-              !selectedTag
-                ? 'bg-indigo-600 text-white border-indigo-600'
-                : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
-            }`}
+      <div className="flex flex-col gap-3 mb-6">
+        {/* Row 1: sort + round filter */}
+        <div className="flex gap-3 flex-wrap items-center">
+          <select
+            value={sortBy}
+            onChange={e => setSortBy(e.target.value as 'name' | 'lastSession')}
+            className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white"
           >
-            All
-          </button>
-          {tags.map(tag => (
+            <option value="lastSession">Sort: Needs attention first</option>
+            <option value="name">Sort: Name A–Z</option>
+          </select>
+
+          {rounds.length > 0 && (
+            <div className="flex gap-2 flex-wrap items-center">
+              <span className="text-xs text-gray-400">Round:</span>
+              <button
+                onClick={() => setSelectedRound('')}
+                className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                  !selectedRound
+                    ? 'bg-gray-800 text-white border-gray-800'
+                    : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                All
+              </button>
+              {rounds.map(r => (
+                <button
+                  key={r}
+                  onClick={() => setSelectedRound(r === selectedRound ? '' : r)}
+                  className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                    selectedRound === r
+                      ? 'bg-gray-800 text-white border-gray-800'
+                      : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Row 2: supervisor filter */}
+        {supervisors.length > 0 && (
+          <div className="flex gap-2 flex-wrap items-center">
+            <span className="text-xs text-gray-400">SA:</span>
+            <select
+              value={selectedSupervisor}
+              onChange={e => setSelectedSupervisor(e.target.value)}
+              className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white"
+            >
+              <option value="">All</option>
+              {supervisors.map(sa => (
+                <option key={sa.id} value={sa.id}>{sa.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {/* Row 3: tag filter */}
+        {tags.length > 0 && (
+          <div className="flex gap-2 flex-wrap items-center">
+            <span className="text-xs text-gray-400">Tag:</span>
             <button
-              key={tag}
-              onClick={() => setSelectedTag(tag === selectedTag ? '' : tag)}
+              onClick={() => setSelectedTag('')}
               className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
-                selectedTag === tag
+                !selectedTag
                   ? 'bg-indigo-600 text-white border-indigo-600'
                   : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
               }`}
             >
-              {tag}
+              All
             </button>
-          ))}
-        </div>
+            {tags.map(tag => (
+              <button
+                key={tag}
+                onClick={() => setSelectedTag(tag === selectedTag ? '' : tag)}
+                className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                  selectedTag === tag
+                    ? 'bg-indigo-600 text-white border-indigo-600'
+                    : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                {tag}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {filtered.length === 0 ? (

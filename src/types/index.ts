@@ -1,11 +1,30 @@
 export type SessionType = 'SA_MEETING' | 'TA_MEETING' | 'THEORY'
 
+export interface Supervisor {
+  id: string
+  name: string
+  gender?: string
+  education?: string
+  background?: string
+  direction?: string
+  notes?: string
+}
+
+export interface PersonalEntry {
+  id: string
+  date: string   // YYYY-MM-DD
+  title: string  // topic/theme
+  content: string // markdown
+  createdAt: string
+}
+
 export type MilestoneStatus = 'not_started' | 'in_progress' | 'completed' | 'na'
 
 export interface SessionRecord {
   id: string
   type: SessionType
   date: string // ISO date string YYYY-MM-DD
+  time?: string // HH:MM
   durationMinutes: number
   summary: string
   homework: string
@@ -21,7 +40,19 @@ export interface MilestoneProgress {
 export interface Student {
   id: string
   name: string
+  nameEn?: string
+  gender?: string
+  school?: string
+  submissionRound?: string
+  taughtElementType?: string
+  universityAspiration?: string
+  currentGrade?: string
+  universityEnrollment?: string
+  contact?: string
+  supervisorId?: string
   topic: string
+  overview?: string
+  personalEntries: PersonalEntry[]
   tags: string[]
   saHoursTotal: number      // SA hour quota
   saHoursUsed: number       // auto-computed from SA session records

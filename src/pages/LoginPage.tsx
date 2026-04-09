@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 
 export default function LoginPage() {
@@ -6,13 +7,18 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const login = useAuthStore(s => s.login)
+  const navigate = useNavigate()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     setLoading(true)
     const ok = await login(pat.trim())
-    if (!ok) setError('Token invalid or no access to data repo. Please check and try again.')
+    if (ok) {
+      navigate('/')
+    } else {
+      setError('Token invalid or no access to data repo. Please check and try again.')
+    }
     setLoading(false)
   }
 

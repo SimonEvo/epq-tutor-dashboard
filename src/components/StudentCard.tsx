@@ -43,15 +43,21 @@ export default function StudentCard({ student }: Props) {
       className={`block bg-white rounded-xl border border-gray-200 border-l-4 ${urgencyColor} p-4 hover:shadow-md transition-shadow`}
     >
       <div className="flex items-start justify-between gap-2 mb-1">
-        <h2 className="font-semibold text-gray-900 text-sm leading-snug">{student.name}</h2>
-        {saLow && (
-          <span className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 shrink-0">
-            SA ⚠️ {saRemaining}h
+        <h2 className="font-semibold text-gray-900 text-sm leading-snug">
+          {student.name}
+          {student.nameEn && <span className="text-gray-400 font-normal ml-1.5">{student.nameEn}</span>}
+        </h2>
+        {student.submissionRound && (
+          <span className="text-xs text-gray-500 bg-gray-100 rounded-full px-2 py-0.5 shrink-0 whitespace-nowrap">
+            {student.submissionRound}
           </span>
         )}
       </div>
 
-      <p className="text-xs text-gray-500 mb-3 line-clamp-1">{student.topic}</p>
+      {student.overview && (
+        <p className="text-xs font-semibold text-indigo-600 mb-0.5">{student.overview}</p>
+      )}
+      <p className="text-xs text-gray-500 mb-3 line-clamp-1 italic">{student.topic}</p>
 
       {/* Tags */}
       {student.tags.length > 0 && (
@@ -85,6 +91,27 @@ export default function StudentCard({ student }: Props) {
         </div>
       </div>
 
+      {/* SA dots */}
+      <div className="mb-3">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {Array.from({ length: student.saHoursTotal }).map((_, i) => (
+            <span
+              key={i}
+              className={`w-2.5 h-2.5 rounded-full ${
+                i < student.saHoursUsed
+                  ? 'bg-gray-200'
+                  : saLow
+                  ? 'bg-amber-400'
+                  : 'bg-green-400'
+              }`}
+            />
+          ))}
+          <span className={`text-xs ml-1 ${saLow ? 'text-amber-600 font-medium' : 'text-gray-400'}`}>
+            {saRemaining}h left
+          </span>
+        </div>
+      </div>
+
       {/* Footer */}
       <div className="flex items-center justify-between text-xs text-gray-400 pt-2 border-t border-gray-100">
         <span>
@@ -92,9 +119,6 @@ export default function StudentCard({ student }: Props) {
             ? `Last: ${SESSION_LABEL[lastSession.type]} · ${daysSinceLast}d ago`
             : 'No sessions yet'}
         </span>
-        {!saLow && (
-          <span>SA {saRemaining}h left</span>
-        )}
       </div>
 
       {/* Next sessions */}

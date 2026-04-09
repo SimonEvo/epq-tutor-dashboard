@@ -93,7 +93,7 @@ ${i.join(`
 学生姓名：${e.name}${e.nameEn?`（${e.nameEn}）`:``}
 EPQ课题：${e.topic}
 整体完成进度：${o}%
-SA剩余课时：${t} / ${e.saHoursTotal} 小时
+剩余：${t} / ${e.saHoursTotal} SA课时
 总课程次数：${e.sessions.length} 次
 
 里程碑完成情况：

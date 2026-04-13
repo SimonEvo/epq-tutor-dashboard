@@ -3,7 +3,10 @@ import { useParams, Link } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import { useStudentStore } from '@/stores/studentStore'
 import { EPQ_MILESTONES } from '@/config'
-import type { Student, MilestoneStatus, SessionType, SessionRecord, PersonalEntry } from '@/types'
+import type { Student, MilestoneStatus, SessionType, SessionRecord, PersonalEntry, MindMap } from '@/types'
+import MarkmapView, { type MarkmapHandle } from '@/components/MarkmapView'
+import MindMapEditor from '@/components/MindMapEditor'
+import { formatHours } from '@/lib/formatters'
 
 const SESSION_LABEL: Record<SessionType, string> = {
   SA_MEETING: 'SA',
@@ -33,14 +36,14 @@ const MILESTONE_ICON: Record<MilestoneStatus, string> = {
 
 export default function StudentDetailPage() {
   const { id } = useParams<{ id: string }>()
-  const { students, saveStudent, supervisors } = useStudentStore()
+  const { students, saveStudent, supervisors, isLoading, fetchAll, fetchSupervisors } = useStudentStore()
 
   const [student, setStudent] = useState<Student | null>(null)
   const [saving, setSaving] = useState(false)
   const [editingBriefNote, setEditingBriefNote] = useState(false)
   const [briefNoteDraft, setBriefNoteDraft] = useState('')
   const [sessionFilter, setSessionFilter] = useState<'all' | SessionType>('all')
-  const [expandedSession, setExpandedSession] = useState<string | null>(null)
+  const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set())
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [expandedEntry, setExpandedEntry] = useState<string | null>(null)
   const [editingEntry, setEditingEntry] = useState<string | null>(null)
@@ -48,10 +51,41 @@ export default function StudentDetailPage() {
   const [confirmDeleteEntry, setConfirmDeleteEntry] = useState<string | null>(null)
   const entryRef = useRef<HTMLTextAreaElement>(null)
 
+  // Mind Maps
+  const [expandedMap, setExpandedMap] = useState<string | null>(null)
+  const [editingMap, setEditingMap] = useState<string | null>(null)
+  const [mapDrafts, setMapDrafts] = useState<Record<string, { title: string; content: string }>>({})
+  const [confirmDeleteMap, setConfirmDeleteMap] = useState<string | null>(null)
+  const [fullscreenMap, setFullscreenMap] = useState<MindMap | null>(null)
+  const markmapModalRef = useRef<MarkmapHandle>(null)
+
+  // Trigger data load when navigating directly to this page (refresh / new tab)
+  useEffect(() => {
+    if (students.length === 0 && !isLoading) {
+      fetchAll()
+      fetchSupervisors()
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     const found = students.find(s => s.id === id)
     if (found) setStudent(found)
   }, [students, id])
+
+  const toggleSession = (sessionId: string) => {
+    setExpandedSessions(prev => {
+      const next = new Set(prev)
+      if (next.has(sessionId)) next.delete(sessionId)
+      else next.add(sessionId)
+      return next
+    })
+  }
+
+  if (isLoading && !student) {
+    return (
+      <div className="p-6 text-gray-400 text-sm animate-pulse">Loading student…</div>
+    )
+  }
 
   if (!student) {
     return (
@@ -141,6 +175,115 @@ export default function StudentDetailPage() {
     setSaving(false)
   }
 
+  // ── Mind Maps ─────────────────────────────────────────────────────────
+
+  const addMindMap = async () => {
+    const newMap: MindMap = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+      date: today,
+      title: '',
+      content: '# 主题\n\n## 分支一\n\n- 要点\n\n## 分支二\n\n- 要点',
+      createdAt: new Date().toISOString(),
+    }
+    const updated: Student = {
+      ...student!,
+      mindMaps: [newMap, ...(student!.mindMaps ?? [])],
+    }
+    setStudent(updated)
+    setExpandedMap(newMap.id)
+    setEditingMap(newMap.id)
+    setMapDrafts(d => ({ ...d, [newMap.id]: { title: '', content: newMap.content } }))
+    setSaving(true)
+    await saveStudent(updated)
+    setSaving(false)
+  }
+
+  const saveMindMap = async (mapId: string) => {
+    const draft = mapDrafts[mapId]
+    if (!draft) return
+    const updated: Student = {
+      ...student!,
+      mindMaps: (student!.mindMaps ?? []).map(m =>
+        m.id === mapId ? { ...m, title: draft.title, content: draft.content } : m
+      ),
+    }
+    setStudent(updated)
+    setEditingMap(null)
+    setSaving(true)
+    await saveStudent(updated)
+    setSaving(false)
+  }
+
+  const deleteMindMap = async (mapId: string) => {
+    const updated: Student = {
+      ...student!,
+      mindMaps: (student!.mindMaps ?? []).filter(m => m.id !== mapId),
+    }
+    setStudent(updated)
+    setConfirmDeleteMap(null)
+    if (expandedMap === mapId) setExpandedMap(null)
+    setSaving(true)
+    await saveStudent(updated)
+    setSaving(false)
+  }
+
+  const exportMapAsSVG = (title: string) => {
+    const svgEl = markmapModalRef.current?.getSVGElement()
+    if (!svgEl) return
+    const serializer = new XMLSerializer()
+    const svgStr = serializer.serializeToString(svgEl)
+    const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${title || 'mindmap'}.svg`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  const exportMapAsPNG = (title: string) => {
+    const svgEl = markmapModalRef.current?.getSVGElement()
+    if (!svgEl) return
+    const rect = svgEl.getBoundingClientRect()
+    const w = rect.width || 1200
+    const h = rect.height || 800
+    const scale = 2 // retina quality
+
+    const clone = svgEl.cloneNode(true) as SVGSVGElement
+    clone.setAttribute('width', String(w))
+    clone.setAttribute('height', String(h))
+
+    const serializer = new XMLSerializer()
+    const svgStr = serializer.serializeToString(clone)
+    const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+
+    const canvas = document.createElement('canvas')
+    canvas.width = w * scale
+    canvas.height = h * scale
+    const ctx = canvas.getContext('2d')!
+
+    const img = new Image()
+    img.onload = () => {
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+      ctx.scale(scale, scale)
+      ctx.drawImage(img, 0, 0)
+      URL.revokeObjectURL(url)
+      const pngUrl = canvas.toDataURL('image/png')
+      const a = document.createElement('a')
+      a.href = pngUrl
+      a.download = `${title || 'mindmap'}.png`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+    }
+    img.onerror = () => URL.revokeObjectURL(url)
+    img.src = url
+  }
+
   const deleteSession = async (sessionId: string) => {
     const updatedSessions = student.sessions.filter(s => s.id !== sessionId)
     const saHoursUsed = updatedSessions
@@ -153,7 +296,7 @@ export default function StudentDetailPage() {
     }
     setStudent(updated)
     setConfirmDelete(null)
-    setExpandedSession(null)
+    setExpandedSessions(prev => { const next = new Set(prev); next.delete(sessionId); return next })
     setSaving(true)
     await saveStudent(updated)
     setSaving(false)
@@ -192,10 +335,9 @@ export default function StudentDetailPage() {
     return `${TYPE_PREFIX[s.type]} #${sessionNumbers[s.id]}`
   }
 
-  // Last (past) and Next (future) sessions
-  const todayDate = new Date().toISOString().slice(0, 10)
-  const pastSessions = sortedSessions.filter(s => s.date <= todayDate)
-  const futureSessions = sortedSessions.filter(s => s.date > todayDate)
+  // Last (past) and Next (future) sessions — reuse `today` defined above
+  const pastSessions = sortedSessions.filter(s => s.date <= today)
+  const futureSessions = sortedSessions.filter(s => s.date > today)
   const lastSession = pastSessions[0] ?? null
   const nextSession = futureSessions.length > 0 ? futureSessions[futureSessions.length - 1] : null
 
@@ -203,10 +345,54 @@ export default function StudentDetailPage() {
     ? sortedSessions
     : sortedSessions.filter(s => s.type === sessionFilter)
 
-  const saRemaining = student.saHoursTotal - student.saHoursUsed
+  // SA hours remaining: count only past sessions, no intermediate rounding (let formatHours handle precision)
+  const pastSaHoursUsed = student.sessions
+    .filter(s => s.type === 'SA_MEETING' && s.date <= today)
+    .reduce((sum, s) => sum + s.durationMinutes / 60, 0)
+  const saRemaining = student.saHoursTotal - pastSaHoursUsed
   const supervisor = supervisors.find(s => s.id === student.supervisorId)
 
   return (
+    <>
+    {/* Fullscreen Mind Map Modal */}
+    {fullscreenMap && (
+      <div className="fixed inset-0 z-50 flex flex-col bg-white">
+        {/* Modal header */}
+        <div className="flex items-center gap-3 px-5 py-3 border-b border-gray-200 bg-gray-50 shrink-0">
+          <span className="text-sm font-medium text-gray-800 truncate flex-1">
+            {fullscreenMap.title || '思维导图'}
+            <span className="ml-2 text-xs text-gray-400 font-normal">{fullscreenMap.date}</span>
+          </span>
+          <button
+            onClick={() => exportMapAsSVG(fullscreenMap.title)}
+            className="text-xs px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-100 transition-colors shrink-0"
+          >
+            导出 SVG
+          </button>
+          <button
+            onClick={() => exportMapAsPNG(fullscreenMap.title)}
+            className="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors shrink-0"
+          >
+            导出 PNG
+          </button>
+          <button
+            onClick={() => setFullscreenMap(null)}
+            className="text-xs px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-100 transition-colors shrink-0"
+          >
+            ✕ 关闭
+          </button>
+        </div>
+        {/* Modal map */}
+        <div className="flex-1 overflow-hidden p-2">
+          <MarkmapView
+            ref={markmapModalRef}
+            content={fullscreenMap.content}
+            height={window.innerHeight - 64}
+          />
+        </div>
+      </div>
+    )}
+
     <div className="p-6 max-w-4xl mx-auto">
 
       {/* Header */}
@@ -283,7 +469,7 @@ export default function StudentDetailPage() {
 
       {/* Stats row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
-        <InfoCard label="SA Hours" value={`${saRemaining} / ${student.saHoursTotal}`} alert={saRemaining <= 2} />
+        <InfoCard label="SA Hours" value={`${formatHours(saRemaining)} / ${student.saHoursTotal}h`} alert={saRemaining <= 2} />
         <InfoCard label="Sessions" value={String(student.sessions.length)} />
         <InfoCard label="EPQ Progress" value={`${progress}%`} />
         <div className="rounded-xl border border-gray-200 bg-white p-3">
@@ -322,8 +508,12 @@ export default function StudentDetailPage() {
                 <td className="px-4 py-2.5 text-gray-400 whitespace-nowrap w-44">Supervisor (SA)</td>
                 <td className="px-4 py-2.5">
                   <div className="inline-flex flex-col gap-0.5">
-                    <span className="text-gray-700 font-medium text-sm">{supervisor.name}
-                      {supervisor.gender && <span className="text-gray-400 font-normal text-xs ml-1.5">{supervisor.gender}</span>}
+                    <span className="text-gray-700 font-medium text-sm flex items-center gap-1.5">
+                      {supervisor.name}
+                      {supervisor.gender && <span className="text-gray-400 font-normal text-xs">{supervisor.gender}</span>}
+                      <span className={`text-xs px-1.5 py-0.5 rounded-full font-normal ${supervisor.saType === '中方SA' ? 'bg-orange-50 text-orange-600' : 'bg-indigo-50 text-indigo-600'}`}>
+                        {supervisor.saType ?? '英方SA'}
+                      </span>
                     </span>
                     {supervisor.education && <span className="text-xs text-gray-500">{supervisor.education}</span>}
                     {supervisor.direction && <span className="text-xs text-gray-500">🎯 {supervisor.direction}</span>}
@@ -335,7 +525,7 @@ export default function StudentDetailPage() {
             )}
             <InfoRow label="Gender" value={student.gender} />
             <InfoRow label="School" value={student.school} />
-            <InfoRow label="Current Grade" value={student.currentGrade} />
+            <InfoRow label="Current Grade" value={student.currentGrade} hint="Year 12 = final highschool year" />
             <InfoRow label="University Enrollment" value={student.universityEnrollment} />
             <InfoRow label="Submission Round" value={student.submissionRound} />
             <InfoRow label="Taught Element Type" value={student.taughtElementType} />
@@ -514,6 +704,134 @@ export default function StudentDetailPage() {
         )}
       </div>
 
+      {/* Mind Maps */}
+      <div className="bg-white rounded-xl border border-gray-200 mb-5 overflow-hidden">
+        <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+          <h2 className="text-sm font-medium text-gray-900">思维导图</h2>
+          <button
+            onClick={addMindMap}
+            className="text-xs px-3 py-1 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+          >
+            + 新建导图
+          </button>
+        </div>
+
+        {(student.mindMaps ?? []).length === 0 ? (
+          <div className="px-4 py-6 text-center text-gray-400 text-sm">
+            暂无思维导图。点击"+ 新建导图"开始创建。
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-50">
+            {(student.mindMaps ?? []).map(map => {
+              const isExpanded = expandedMap === map.id
+              const isEditing = editingMap === map.id
+              const draft = mapDrafts[map.id] ?? { title: map.title, content: map.content }
+
+              return (
+                <div key={map.id}>
+                  {/* Map header */}
+                  <div
+                    className="px-4 py-3 flex items-center gap-3 cursor-pointer hover:bg-gray-50 transition-colors"
+                    onClick={() => {
+                      if (isEditing) return
+                      setExpandedMap(isExpanded ? null : map.id)
+                    }}
+                  >
+                    <span className="text-xs text-gray-400 shrink-0 font-mono">{map.date}</span>
+                    {isEditing ? (
+                      <input
+                        value={draft.title}
+                        onChange={e => setMapDrafts(d => ({ ...d, [map.id]: { ...draft, title: e.target.value } }))}
+                        onClick={e => e.stopPropagation()}
+                        placeholder="导图标题…"
+                        className="flex-1 text-sm font-medium text-gray-900 border-b border-indigo-300 focus:outline-none bg-transparent pb-0.5"
+                      />
+                    ) : (
+                      <span className="flex-1 text-sm font-medium text-gray-900">
+                        {map.title || <span className="text-gray-400 font-normal italic">未命名</span>}
+                      </span>
+                    )}
+                    <span className="text-gray-300 text-xs ml-auto shrink-0">{isExpanded ? '▲' : '▼'}</span>
+                  </div>
+
+                  {/* Map body */}
+                  {isExpanded && (
+                    <div className="px-4 pb-4">
+                      {isEditing ? (
+                        <>
+                          <MindMapEditor
+                            value={draft.content}
+                            onChange={content => setMapDrafts(d => ({ ...d, [map.id]: { ...draft, content } }))}
+                          />
+                          <div className="flex gap-2 mt-2">
+                            <button
+                              onClick={() => saveMindMap(map.id)}
+                              className="text-xs px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                            >
+                              保存并渲染
+                            </button>
+                            <button
+                              onClick={() => setEditingMap(null)}
+                              className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                            >
+                              取消
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <MarkmapView content={map.content} />
+                          <div className="flex gap-2 mt-3">
+                            <button
+                              onClick={() => setFullscreenMap(map)}
+                              className="text-xs px-3 py-1.5 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors"
+                            >
+                              ⛶ 全屏查看 / 导出
+                            </button>
+                            <button
+                              onClick={() => {
+                                setEditingMap(map.id)
+                                setMapDrafts(d => ({ ...d, [map.id]: { title: map.title, content: map.content } }))
+                              }}
+                              className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
+                            >
+                              编辑
+                            </button>
+                            {confirmDeleteMap === map.id ? (
+                              <>
+                                <button
+                                  onClick={() => deleteMindMap(map.id)}
+                                  className="text-xs px-3 py-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                                >
+                                  确认删除
+                                </button>
+                                <button
+                                  onClick={() => setConfirmDeleteMap(null)}
+                                  className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                                >
+                                  取消
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                onClick={() => setConfirmDeleteMap(map.id)}
+                                className="text-xs px-3 py-1.5 border border-red-200 text-red-400 rounded-lg hover:bg-red-50 transition-colors"
+                              >
+                                删除
+                              </button>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
       {/* EPQ Milestones */}
       <div className="bg-white rounded-xl border border-gray-200 p-4 mb-5">
         <div className="flex items-center justify-between mb-3">
@@ -553,7 +871,7 @@ export default function StudentDetailPage() {
         </div>
 
         {/* Filter tabs */}
-        <div className="flex gap-1.5 mb-4">
+        <div className="flex gap-1.5 mb-4 flex-wrap">
           {([
             ['all', `All (${student.sessions.length})`],
             ['SA_MEETING', `SA (${student.sessions.filter(s => s.type === 'SA_MEETING').length})`],
@@ -577,88 +895,116 @@ export default function StudentDetailPage() {
         {filteredSessions.length === 0 ? (
           <p className="text-sm text-gray-400 py-4 text-center">No sessions recorded yet.</p>
         ) : (
-          <div className="flex flex-col gap-3">
-            {filteredSessions.map(session => (
-              <div key={session.id} className="border border-gray-100 rounded-xl p-3 hover:border-gray-200 transition-colors">
-                <div
-                  className="flex items-center gap-2 cursor-pointer"
-                  onClick={() => setExpandedSession(expandedSession === session.id ? null : session.id)}
-                >
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${SESSION_COLOR[session.type]}`}>
-                    {SESSION_LABEL[session.type]}
-                  </span>
-                  <span className="text-sm font-medium text-gray-800 truncate">
-                    {sessionDisplayTitle(session)}
-                  </span>
-                  <span className="text-xs text-gray-400 shrink-0">
-                    {session.date}{session.time && ` ${session.time}`}
-                  </span>
-                  <span className="text-xs text-gray-400 shrink-0">{session.durationMinutes} min</span>
-                  <span className="ml-auto text-gray-300 text-xs shrink-0">{expandedSession === session.id ? '▲' : '▼'}</span>
-                </div>
-                {session.summary && (
-                  <p className="text-sm text-gray-600 mt-2 line-clamp-1">{session.summary}</p>
-                )}
-                {expandedSession === session.id && (
-                  <div className="mt-3 flex flex-col gap-3 border-t border-gray-100 pt-3">
-                    {session.summary && <Detail label="Summary" content={session.summary} />}
-                    {session.homework && <Detail label="Homework / Next steps" content={session.homework} />}
-                    {session.transcript && <Detail label="Transcript" content={session.transcript} mono />}
-                    {session.privateNotes && <Detail label="🔒 Private notes" content={session.privateNotes} />}
-                    <div className="flex gap-2 pt-1 flex-wrap">
-                      <Link
-                        to={`/students/${student.id}/session/${session.id}/report`}
-                        className="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
-                      >
-                        生成课后报告
-                      </Link>
-                      <Link
-                        to={`/students/${student.id}/session/${session.id}/edit`}
-                        className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
-                      >
-                        Edit
-                      </Link>
-                      {confirmDelete === session.id ? (
-                        <>
-                          <button
-                            onClick={() => deleteSession(session.id)}
-                            className="text-xs px-3 py-1.5 rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors"
-                          >
-                            Confirm delete
-                          </button>
-                          <button
-                            onClick={() => setConfirmDelete(null)}
-                            className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
-                          >
-                            Cancel
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          onClick={() => setConfirmDelete(session.id)}
-                          className="text-xs px-3 py-1.5 rounded-lg border border-red-200 text-red-400 hover:bg-red-50 transition-colors"
-                        >
-                          Delete
-                        </button>
-                      )}
-                    </div>
+          <>
+            {/* Expand / Collapse All */}
+            <div className="flex justify-end mb-2">
+              <button
+                onClick={() => {
+                  const allExpanded = filteredSessions.every(s => expandedSessions.has(s.id))
+                  if (allExpanded) {
+                    setExpandedSessions(new Set())
+                  } else {
+                    setExpandedSessions(new Set(filteredSessions.map(s => s.id)))
+                  }
+                }}
+                className="text-xs text-gray-400 hover:text-indigo-600 transition-colors px-2 py-1"
+              >
+                {filteredSessions.every(s => expandedSessions.has(s.id)) ? '▲ Collapse All' : '▼ Expand All'}
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              {filteredSessions.map(session => (
+                <div key={session.id} className="border border-gray-100 rounded-xl p-3 hover:border-gray-200 transition-colors">
+                  <div
+                    className="flex items-center gap-2 cursor-pointer"
+                    onClick={() => toggleSession(session.id)}
+                  >
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${SESSION_COLOR[session.type]}`}>
+                      {SESSION_LABEL[session.type]}
+                    </span>
+                    {session.date > today && (
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-full shrink-0 bg-sky-50 text-sky-500 border border-sky-200">
+                        未开始
+                      </span>
+                    )}
+                    <span className="text-sm font-medium text-gray-800 truncate">
+                      {sessionDisplayTitle(session)}
+                    </span>
+                    <span className="text-xs text-gray-400 shrink-0">
+                      {session.date}{session.time && ` ${session.time}`}
+                    </span>
+                    <span className="text-xs text-gray-400 shrink-0">{session.durationMinutes} min</span>
+                    <span className="ml-auto text-gray-300 text-xs shrink-0">{expandedSessions.has(session.id) ? '▲' : '▼'}</span>
                   </div>
-                )}
-              </div>
-            ))}
-          </div>
+                  {!expandedSessions.has(session.id) && session.summary && (
+                    <p className="text-sm text-gray-600 mt-2 line-clamp-1">{session.summary}</p>
+                  )}
+                  {expandedSessions.has(session.id) && (
+                    <div className="mt-3 flex flex-col gap-3 border-t border-gray-100 pt-3">
+                      {session.summary && <Detail label="Summary" content={session.summary} />}
+                      {session.homework && <Detail label="Homework / Next steps" content={session.homework} />}
+                      {session.transcript && <Detail label="Transcript" content={session.transcript} mono />}
+                      {session.privateNotes && <Detail label="🔒 Private notes" content={session.privateNotes} />}
+                      <div className="flex gap-2 pt-1 flex-wrap">
+                        <Link
+                          to={`/students/${student.id}/session/${session.id}/report`}
+                          className="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+                        >
+                          生成课后报告
+                        </Link>
+                        <Link
+                          to={`/students/${student.id}/session/${session.id}/edit`}
+                          className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+                        >
+                          Edit
+                        </Link>
+                        {confirmDelete === session.id ? (
+                          <>
+                            <button
+                              onClick={() => deleteSession(session.id)}
+                              className="text-xs px-3 py-1.5 rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors"
+                            >
+                              Confirm delete
+                            </button>
+                            <button
+                              onClick={() => setConfirmDelete(null)}
+                              className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+                            >
+                              Cancel
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            onClick={() => setConfirmDelete(session.id)}
+                            className="text-xs px-3 py-1.5 rounded-lg border border-red-200 text-red-400 hover:bg-red-50 transition-colors"
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </div>
 
     </div>
+    </>
   )
 }
 
-function InfoRow({ label, value }: { label: string; value?: string }) {
+function InfoRow({ label, value, hint }: { label: string; value?: string; hint?: string }) {
   if (!value) return null
   return (
     <tr className="border-t border-gray-50">
-      <td className="px-4 py-2.5 text-gray-400 whitespace-nowrap w-44">{label}</td>
+      <td className="px-4 py-2.5 text-gray-400 whitespace-nowrap w-44">
+        {label}
+        {hint && <span className="block text-xs text-gray-300 mt-0.5">{hint}</span>}
+      </td>
       <td className="px-4 py-2.5 text-gray-700">{value}</td>
     </tr>
   )

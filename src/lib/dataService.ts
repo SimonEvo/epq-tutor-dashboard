@@ -55,7 +55,9 @@ export async function listStudents(): Promise<Student[]> {
     const students = await Promise.all(
       jsonFiles.map(async (f) => {
         const { content } = await getFile(`students/${f.name}`)
-        return JSON.parse(content) as Student
+        const s = JSON.parse(content) as Student
+        s.mindMaps = s.mindMaps ?? []
+        return s
       })
     )
     return students.sort((a, b) => a.name.localeCompare(b.name))

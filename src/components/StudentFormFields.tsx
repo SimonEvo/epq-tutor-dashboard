@@ -82,6 +82,7 @@ export function buildStudentFromForm(f: StudentFormState): Omit<Student, 'id' | 
     briefNote: f.briefNote.trim(),
     privateNotes: f.privateNotes.trim(),
     tencentDocUrl: f.tencentDocUrl.trim() || undefined,
+    mindMaps: [],
   }
 }
 

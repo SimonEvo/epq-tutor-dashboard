@@ -7,7 +7,7 @@ function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 5)
 }
 
-const empty = (): Supervisor => ({ id: generateId(), name: '', gender: '', education: '', background: '', direction: '', notes: '' })
+const empty = (): Supervisor => ({ id: generateId(), name: '', gender: '', education: '', background: '', direction: '', notes: '', saType: '英方SA' })
 
 export default function SupervisorsPage() {
   const { supervisors, fetchSupervisors, saveSupervisor, deleteSupervisor } = useStudentStore()
@@ -54,6 +54,12 @@ export default function SupervisorsPage() {
                 <option value="Other">Other</option>
               </select>
             </Field>
+            <Field label="SA 类型">
+              <select value={editing.saType ?? '英方SA'} onChange={e => setEditing({ ...editing, saType: e.target.value as '英方SA' | '中方SA' })} className={inputCls}>
+                <option value="英方SA">英方SA</option>
+                <option value="中方SA">中方SA</option>
+              </select>
+            </Field>
             <Field label="Education">
               <input value={editing.education} onChange={e => setEditing({ ...editing, education: e.target.value })}
                 placeholder="e.g. PhD, Oxford" className={inputCls} />
@@ -93,9 +99,14 @@ export default function SupervisorsPage() {
             <div key={sa.id} className="bg-white rounded-xl border border-gray-200 p-4">
               <div className="flex items-start justify-between gap-2">
                 <Link to={`/supervisors/${sa.id}`} className="hover:underline">
-                  <p className="font-medium text-gray-900 text-sm">{sa.name}
-                    {sa.gender && <span className="text-gray-400 font-normal ml-2 text-xs">{sa.gender}</span>}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium text-gray-900 text-sm">{sa.name}
+                      {sa.gender && <span className="text-gray-400 font-normal ml-2 text-xs">{sa.gender}</span>}
+                    </p>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${sa.saType === '中方SA' ? 'bg-orange-50 text-orange-600' : 'bg-indigo-50 text-indigo-600'}`}>
+                      {sa.saType ?? '英方SA'}
+                    </span>
+                  </div>
                   {sa.education && <p className="text-xs text-gray-500 mt-0.5">{sa.education}</p>}
                 </Link>
                 <div className="flex gap-2 shrink-0">

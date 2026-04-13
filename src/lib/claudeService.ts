@@ -35,7 +35,10 @@ async function callClaude(prompt: string): Promise<string> {
 // ── Session Report ────────────────────────────────────────────────────────────
 
 export async function generateSessionReport(student: Student, session: SessionRecord): Promise<string> {
-  const saRemaining = student.saHoursTotal - student.saHoursUsed
+  const pastSaCount = student.sessions.filter(
+    s => s.type === 'SA_MEETING' && s.date <= session.date
+  ).length
+  const saRemaining = student.saHoursTotal - pastSaCount
   const typeLabel = session.type === 'SA_MEETING' ? 'SA Meeting（学术督导课）'
     : session.type === 'TA_MEETING' ? 'TA Meeting（辅导课）'
     : 'Taught Element（课程讲解）'
@@ -88,7 +91,11 @@ ${parts.join('\n')}`
 // ── Progress Report ───────────────────────────────────────────────────────────
 
 export async function generateProgressReport(student: Student): Promise<string> {
-  const saRemaining = student.saHoursTotal - student.saHoursUsed
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const pastSaCount = student.sessions.filter(
+    s => s.type === 'SA_MEETING' && s.date <= todayStr
+  ).length
+  const saRemaining = student.saHoursTotal - pastSaCount
 
   // Milestones summary
   const completed = EPQ_MILESTONES.filter(m => student.milestones[m.id] === 'completed').map(m => m.label)

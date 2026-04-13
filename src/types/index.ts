@@ -8,6 +8,7 @@ export interface Supervisor {
   background?: string
   direction?: string
   notes?: string
+  saType?: '英方SA' | '中方SA'  // defaults to 英方SA when unset
 }
 
 export interface PersonalEntry {
@@ -15,6 +16,14 @@ export interface PersonalEntry {
   date: string   // YYYY-MM-DD
   title: string  // topic/theme
   content: string // markdown
+  createdAt: string
+}
+
+export interface MindMap {
+  id: string
+  date: string      // YYYY-MM-DD
+  title: string
+  content: string   // markdown — rendered by markmap
   createdAt: string
 }
 
@@ -54,6 +63,7 @@ export interface Student {
   topic: string
   overview?: string
   personalEntries: PersonalEntry[]
+  mindMaps: MindMap[]
   tags: string[]
   saHoursTotal: number      // SA hour quota
   saHoursUsed: number       // auto-computed from SA session records

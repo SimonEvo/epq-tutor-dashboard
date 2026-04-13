@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import type { Student } from '@/types'
 import { EPQ_MILESTONES } from '@/config'
+import { formatHours } from '@/lib/formatters'
 
 interface Props {
   student: Student
@@ -13,10 +14,20 @@ const SESSION_LABEL: Record<string, string> = {
 }
 
 export default function StudentCard({ student }: Props) {
-  const lastSession = [...student.sessions].sort((a, b) => b.date.localeCompare(a.date))[0]
-  const daysSinceLast = lastSession
-    ? Math.floor((Date.now() - new Date(lastSession.date).getTime()) / 86400000)
+  const todayStr = new Date().toISOString().slice(0, 10)
+
+  // Last SA/TA meeting: past only (date <= today), exclude THEORY
+  const lastMeeting = [...student.sessions]
+    .filter(s => (s.type === 'SA_MEETING' || s.type === 'TA_MEETING') && s.date <= todayStr)
+    .sort((a, b) => b.date.localeCompare(a.date))[0]
+  const daysSinceLast = lastMeeting
+    ? Math.floor((Date.now() - new Date(lastMeeting.date).getTime()) / 86400000)
     : null
+
+  // Next SA meeting: future SA sessions only (date > today), take earliest
+  const nextSaMeeting = [...student.sessions]
+    .filter(s => s.type === 'SA_MEETING' && s.date > todayStr)
+    .sort((a, b) => a.date.localeCompare(b.date))[0]
 
   const applicableMilestones = EPQ_MILESTONES.filter(
     m => !m.optional || student.milestones[m.id] !== 'na'
@@ -26,8 +37,17 @@ export default function StudentCard({ student }: Props) {
     ? Math.round((completed / applicableMilestones.length) * 100)
     : 0
 
-  const saRemaining = student.saHoursTotal - student.saHoursUsed
-  const saLow = saRemaining <= 2
+  // Dots: count past SA sessions only — SESSION count for dimming (次数)
+  const pastSaCount = student.sessions.filter(
+    s => s.type === 'SA_MEETING' && s.date <= todayStr
+  ).length
+
+  // Label: remaining HOURS from past sessions only (小时数，与次数独立计算)
+  const pastSaHoursUsed = student.sessions
+    .filter(s => s.type === 'SA_MEETING' && s.date <= todayStr)
+    .reduce((sum, s) => sum + s.durationMinutes / 60, 0)
+  const saHoursRemaining = student.saHoursTotal - pastSaHoursUsed
+  const saLow = saHoursRemaining <= 2
 
   const urgencyColor = daysSinceLast === null
     ? 'border-l-gray-200'
@@ -98,7 +118,7 @@ export default function StudentCard({ student }: Props) {
             <span
               key={i}
               className={`w-2.5 h-2.5 rounded-full ${
-                i < student.saHoursUsed
+                i < pastSaCount
                   ? 'bg-gray-200'
                   : saLow
                   ? 'bg-amber-400'
@@ -107,23 +127,25 @@ export default function StudentCard({ student }: Props) {
             />
           ))}
           <span className={`text-xs ml-1 ${saLow ? 'text-amber-600 font-medium' : 'text-gray-400'}`}>
-            {saRemaining}h left
+            {formatHours(saHoursRemaining)} left
           </span>
         </div>
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between text-xs text-gray-400 pt-2 border-t border-gray-100">
+      <div className="flex flex-col gap-0.5 text-xs text-gray-400 pt-2 border-t border-gray-100">
         <span>
-          {lastSession
-            ? `Last: ${SESSION_LABEL[lastSession.type]} · ${daysSinceLast}d ago`
-            : 'No sessions yet'}
+          {lastMeeting
+            ? `Last: ${SESSION_LABEL[lastMeeting.type]} · ${lastMeeting.date} (${daysSinceLast}d ago)`
+            : 'No SA/TA meetings yet'}
         </span>
+        {nextSaMeeting && (
+          <span className="text-indigo-500">Next SA: {nextSaMeeting.date}</span>
+        )}
       </div>
 
-      {/* Next sessions */}
-      <div className="mt-2 flex flex-col gap-0.5 text-xs text-gray-500">
-        {student.nextSaSession && <span>📌 SA: {student.nextSaSession}</span>}
+      {/* Other next sessions */}
+      <div className="mt-1 flex flex-col gap-0.5 text-xs text-gray-400">
         {student.nextTaSession && <span>📌 TA: {student.nextTaSession}</span>}
         {student.nextTheorySession && <span>📌 Theory: {student.nextTheorySession}</span>}
       </div>

@@ -13,8 +13,20 @@ A personal student management system for EPQ academic tutors — track session r
 - **EPQ milestone tracking** — 19-node progress bar (Intro → 文综 → 方法论 → … → 提交) per student
 - **Custom tags** — filter students by tags you define yourself
 - **Availability notes** — flag students who are paused for exams or other reasons
+- **Supervisor (SA) management** — manage supervisors with background, direction, and SA type (英方SA / 中方SA)
+- **Mind maps** — create and view Markmap-based mind maps per student, with fullscreen view and SVG/PNG export
+- **AI report generation** — generate formatted parent-facing session and progress reports via an LLM API, with private notes always excluded
+- **Session hour statistics** — summarise SA session hours across 英方SA students up to a chosen cutoff date, with copyable text output
 - **Export** — generate a formatted, emoji-decorated summary for parents or marketing, with private notes automatically excluded
 - **Private notes** — per student and per session; never appear in any export
+
+## Changelog
+
+### 2026-04-13
+- **SA type moved to Supervisor** — 英方SA / 中方SA is now a property of each Supervisor record (defaulting to 英方SA) rather than the student, reflecting that the type belongs to the supervisor, not the student
+- **Session hour statistics filter** — the 统计课时 modal now correctly excludes 中方SA students by checking their assigned supervisor's type; only SA_MEETING sessions are counted (TA and theory sessions excluded)
+- **SA hours calculation fix** — remaining SA hours in the statistics modal now derive entirely from a single filtered session list, eliminating a duplicate filter and intermediate rounding that caused small discrepancies
+- **AI report SA remaining fix** — the remaining SA count shown in AI-generated session and progress reports now matches the green dot count on student cards (integer past-session count subtracted from quota, computed fresh from session records rather than the stale `saHoursUsed` field)
 
 ## Architecture
 

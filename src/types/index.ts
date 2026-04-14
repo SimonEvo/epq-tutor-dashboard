@@ -41,6 +41,8 @@ export interface SessionRecord {
   transcript: string
   privateNotes: string
   createdAt: string
+  generatedReport?: string   // cached AI-generated parent report
+  reportGeneratedAt?: string // ISO timestamp of when it was generated
 }
 
 export interface MilestoneProgress {
@@ -76,6 +78,8 @@ export interface Student {
   tencentDocUrl?: string    // shared Tencent Doc URL for this student's WeChat group
   milestones: MilestoneProgress
   sessions: SessionRecord[]
+  generatedProgressReport?: string    // cached AI-generated progress report
+  progressReportGeneratedAt?: string  // ISO timestamp of when it was generated
   createdAt: string
   updatedAt: string
 }
@@ -100,4 +104,20 @@ export interface StudentSummary {
 // Global tag library stored in config/tags.json
 export interface TagsConfig {
   tags: string[]
+}
+
+// ─── Weekly Report ────────────────────────────────────────────────────────────
+
+export interface StudentReportCacheEntry {
+  updatedAt: string  // snapshot of student.updatedAt at last scan
+  alias: string      // e.g. "学生A" — stable across scans
+}
+
+export interface WeeklyReportData {
+  generatedAt: string   // ISO timestamp
+  content: string       // decoded report text (real names restored)
+  cache: {
+    lastScanAt: string
+    students: Record<string, StudentReportCacheEntry>  // keyed by student id
+  }
 }

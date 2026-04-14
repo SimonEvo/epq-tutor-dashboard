@@ -133,9 +133,9 @@ export default function StudentFormFields({ state, globalTags, globalRounds, sup
         <Field label="Gender">
           <select value={state.gender} onChange={e => state.setGender(e.target.value)} className={inputCls}>
             <option value="">—</option>
-            <option value="Male">Male</option>
-            <option value="Female">Female</option>
-            <option value="Other">Other</option>
+            <option value="Male">男</option>
+            <option value="Female">女</option>
+            <option value="Other">其他</option>
           </select>
         </Field>
         <Field label="School">
@@ -188,9 +188,9 @@ export default function StudentFormFields({ state, globalTags, globalRounds, sup
             </button>
           </div>
         </Field>
-        <Field label="Taught Element Type">
+        <Field label="理论课班期">
           <input value={state.taughtElementType} onChange={e => state.setTaughtElementType(e.target.value)}
-            placeholder="e.g. Science, Humanities…" className={inputCls} />
+            placeholder="e.g. 2025年秋季班 / Science Cohort A" className={inputCls} />
         </Field>
         <Field label="Contact">
           <input value={state.contact} onChange={e => state.setContact(e.target.value)}

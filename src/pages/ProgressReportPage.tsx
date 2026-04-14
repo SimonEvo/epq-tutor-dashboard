@@ -4,33 +4,63 @@ import { useStudentStore } from '@/stores/studentStore'
 import { generateProgressReport } from '@/lib/claudeService'
 import { getSettings } from '@/lib/settings'
 
+function formatTimestamp(iso: string): string {
+  return new Date(iso).toLocaleString('zh-CN', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })
+}
+
 export default function ProgressReportPage() {
   const { id } = useParams<{ id: string }>()
-  const { students } = useStudentStore()
+  const { students, saveStudent } = useStudentStore()
 
   const student = students.find(s => s.id === id)
 
   const [report, setReport] = useState('')
   const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
+  const [fromCache, setFromCache] = useState(false)
 
-  const generate = async () => {
+  useEffect(() => {
+    if (!student) return
+    if (student.generatedProgressReport) {
+      setReport(student.generatedProgressReport)
+      setFromCache(true)
+    } else {
+      generate(false)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const generate = async (force: boolean) => {
     if (!student) return
     setLoading(true)
     setError('')
-    setReport('')
+    setFromCache(false)
+    if (force) setReport('')
     try {
       const text = await generateProgressReport(student)
       setReport(text)
+      setSaving(true)
+      await saveStudent({
+        ...student,
+        generatedProgressReport: text,
+        progressReportGeneratedAt: new Date().toISOString(),
+      })
     } catch (e) {
       setError(String(e))
     } finally {
       setLoading(false)
+      setSaving(false)
     }
   }
-
-  useEffect(() => { generate() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const copy = async () => {
     await navigator.clipboard.writeText(report)
@@ -58,10 +88,10 @@ export default function ProgressReportPage() {
       </div>
 
       {/* Action bar */}
-      <div className="flex gap-2 mb-4">
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
         <button
-          onClick={generate}
-          disabled={loading}
+          onClick={() => generate(true)}
+          disabled={loading || saving}
           className="text-sm px-4 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-50 transition-colors"
         >
           {loading ? '生成中…' : report ? '重新生成' : '生成报告'}
@@ -85,6 +115,14 @@ export default function ProgressReportPage() {
               </a>
             )}
           </>
+        )}
+        {fromCache && student.progressReportGeneratedAt && (
+          <span className="text-xs text-gray-400 ml-1">
+            已缓存 · 生成于 {formatTimestamp(student.progressReportGeneratedAt)}
+          </span>
+        )}
+        {saving && (
+          <span className="text-xs text-gray-400 ml-1">保存中…</span>
         )}
       </div>
 

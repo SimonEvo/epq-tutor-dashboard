@@ -47,6 +47,8 @@ export default function EditSessionPage() {
         homework: homework.trim(),
         transcript: transcript.trim(),
         privateNotes: privateNotes.trim(),
+        generatedReport: undefined,    // invalidate cached report on edit
+        reportGeneratedAt: undefined,
       }
       const updatedSessions = student.sessions.map(s =>
         s.id === sessionId ? updatedSession : s

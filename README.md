@@ -22,6 +22,19 @@ A personal student management system for EPQ academic tutors — track session r
 
 ## Changelog
 
+### 2026-04-14
+
+- **iCloud calendar sync** — session records are automatically published as an ICS file hosted on a secret GitHub Gist; subscribe once in Calendar.app and it stays updated. Gist ID is stored in the data repo (`config/calendar.json`) so it works across devices. Manual sync button and subscription URL also available in Settings.
+- **AI Command Center** — natural language input on the Dashboard to create students or session records. Parses all ~20 student fields (name, grade, supervisor, tags, submission round, etc.), shows a preview before confirming, and stays on the Dashboard after creating a session (no forced navigation). Student names sent to the AI are anonymised as 学生A/B/C; results are decoded before saving.
+- **AI model flexibility** — Settings page now accepts any OpenAI-compatible Base URL + model name (presets for 阿里云百炼, DeepSeek, OpenAI). Previously hard-coded to Qwen.
+- **AI report caching** — generated session reports and progress reports are saved back to the student's JSON file (`generatedReport`, `generatedProgressReport`). Cached reports load instantly on revisit; editing a session invalidates its cache. Progress report cache is never auto-invalidated (manual "重新生成" button).
+- **Weekly progress reminder (进度提醒)** — Dashboard button triggers an AI-generated tutor weekly report across all students. Students unchanged since last scan reuse cached status (only changed students send full data to the AI). Each report is archived to `reports/YYYY-MM-DD_HHmm.json` in the data repo; latest is also stored in `config/weekly_report.json` for fast reload. Student names are anonymised in the AI prompt and decoded in the output.
+- **Delete student** — moved from the student detail page to the Edit page (less exposed), with a confirmation dialog.
+- **UI localisation** — gender options display in Chinese (男/女/其他) while storing Male/Female/Other; "Taught Element Type" renamed to "理论课班期"; submission round fuzzy-matched from existing rounds by the AI Command Center.
+- **Stability fix** — `fetchAll` no longer clears the student list when the GitHub API returns an empty response due to post-delete eventual consistency. Existing data is preserved until a non-empty response is received.
+
+> **⚠️ AI prompt quality note:** The prompts feeding the AI Command Center and the weekly progress reminder are functional but not yet fully tuned. Edge cases (ambiguous availability notes, mixed Chinese/English inputs, alias leakage in summaries) may produce imperfect output. The overall system architecture is stable; prompt refinement is the main remaining work.
+
 ### 2026-04-13
 - **SA type moved to Supervisor** — 英方SA / 中方SA is now a property of each Supervisor record (defaulting to 英方SA) rather than the student, reflecting that the type belongs to the supervisor, not the student
 - **Session hour statistics filter** — the 统计课时 modal now correctly excludes 中方SA students by checking their assigned supervisor's type; only SA_MEETING sessions are counted (TA and theory sessions excluded)

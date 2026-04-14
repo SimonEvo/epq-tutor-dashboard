@@ -4,7 +4,7 @@
  */
 import { getClient } from './githubClient'
 import { GITHUB_CONFIG } from '@/config'
-import type { Student, Supervisor, TagsConfig } from '@/types'
+import type { Student, Supervisor, TagsConfig, WeeklyReportData } from '@/types'
 
 const { owner, dataRepo } = GITHUB_CONFIG
 
@@ -97,6 +97,27 @@ export async function deleteStudent(id: string): Promise<void> {
   })
 }
 
+// ─── Calendar config ─────────────────────────────────────────────────────────
+
+export async function getCalendarGistId(): Promise<string | null> {
+  try {
+    const { content } = await getFile('config/calendar.json')
+    const config = JSON.parse(content) as { gistId: string }
+    return config.gistId ?? null
+  } catch {
+    return null
+  }
+}
+
+export async function saveCalendarGistId(gistId: string): Promise<void> {
+  let sha: string | undefined
+  try {
+    const existing = await getFile('config/calendar.json')
+    sha = existing.sha
+  } catch { /* first time */ }
+  await putFile('config/calendar.json', JSON.stringify({ gistId }, null, 2), sha, 'update calendar config')
+}
+
 // ─── Rounds ──────────────────────────────────────────────────────────────────
 
 export async function getRounds(): Promise<string[]> {
@@ -181,6 +202,36 @@ export async function deleteSupervisor(id: string): Promise<void> {
     message: `delete supervisor ${id}`,
     sha,
   })
+}
+
+// ─── Weekly Report ────────────────────────────────────────────────────────────
+
+export async function getWeeklyReportData(): Promise<WeeklyReportData | null> {
+  try {
+    const { content } = await getFile('config/weekly_report.json')
+    return JSON.parse(content) as WeeklyReportData
+  } catch {
+    return null
+  }
+}
+
+export async function saveWeeklyReportData(data: WeeklyReportData): Promise<void> {
+  // 1. Update config/weekly_report.json (latest report + cache combined)
+  let sha: string | undefined
+  try {
+    const existing = await getFile('config/weekly_report.json')
+    sha = existing.sha
+  } catch { /* first time */ }
+  await putFile('config/weekly_report.json', JSON.stringify(data, null, 2), sha, 'update weekly report')
+
+  // 2. Archive to reports/YYYY-MM-DD_HHmm.json
+  const ts = data.generatedAt.slice(0, 16).replace('T', '_').replace(':', '')
+  await putFile(
+    `reports/${ts}.json`,
+    JSON.stringify({ generatedAt: data.generatedAt, content: data.content }, null, 2),
+    undefined,
+    `weekly report ${ts}`,
+  )
 }
 
 // ─── Auth check ──────────────────────────────────────────────────────────────

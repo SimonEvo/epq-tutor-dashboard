@@ -494,6 +494,166 @@ export default function StudentDetailPage() {
         </div>
       </div>
 
+      {/* Sessions */}
+      <div className="bg-white rounded-xl border border-gray-200 p-4 mb-5">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-medium text-gray-900 text-sm">Session Records ({student.sessions.length})</h2>
+          <Link to={`/students/${student.id}/session/new`} className="text-xs text-indigo-600 hover:underline">+ Add</Link>
+        </div>
+
+        {/* Filter tabs */}
+        <div className="flex gap-1.5 mb-4 flex-wrap">
+          {([
+            ['all', `All (${student.sessions.length})`],
+            ['SA_MEETING', `SA (${student.sessions.filter(s => s.type === 'SA_MEETING').length})`],
+            ['TA_MEETING', `TA (${student.sessions.filter(s => s.type === 'TA_MEETING').length})`],
+            ['THEORY', `Taught Element (${student.sessions.filter(s => s.type === 'THEORY').length})`],
+          ] as const).map(([val, label]) => (
+            <button
+              key={val}
+              onClick={() => setSessionFilter(val)}
+              className={`text-xs px-3 py-1 rounded-full border transition-colors ${
+                sessionFilter === val
+                  ? 'bg-indigo-600 text-white border-indigo-600'
+                  : 'text-gray-500 border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {filteredSessions.length === 0 ? (
+          <p className="text-sm text-gray-400 py-4 text-center">No sessions recorded yet.</p>
+        ) : (
+          <>
+            {/* Expand / Collapse All */}
+            <div className="flex justify-end mb-2">
+              <button
+                onClick={() => {
+                  const allExpanded = filteredSessions.every(s => expandedSessions.has(s.id))
+                  if (allExpanded) {
+                    setExpandedSessions(new Set())
+                  } else {
+                    setExpandedSessions(new Set(filteredSessions.map(s => s.id)))
+                  }
+                }}
+                className="text-xs text-gray-400 hover:text-indigo-600 transition-colors px-2 py-1"
+              >
+                {filteredSessions.every(s => expandedSessions.has(s.id)) ? '▲ Collapse All' : '▼ Expand All'}
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              {filteredSessions.map(session => (
+                <div key={session.id} className="border border-gray-100 rounded-xl p-3 hover:border-gray-200 transition-colors">
+                  <div
+                    className="flex items-center gap-2 cursor-pointer"
+                    onClick={() => toggleSession(session.id)}
+                  >
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${SESSION_COLOR[session.type]}`}>
+                      {SESSION_LABEL[session.type]}
+                    </span>
+                    {session.date > today && (
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-full shrink-0 bg-sky-50 text-sky-500 border border-sky-200">
+                        未开始
+                      </span>
+                    )}
+                    <span className="text-sm font-medium text-gray-800 truncate">
+                      {sessionDisplayTitle(session)}
+                    </span>
+                    <span className="text-xs text-gray-400 shrink-0">
+                      {session.date}{session.time && ` ${session.time}`}
+                    </span>
+                    <span className="text-xs text-gray-400 shrink-0">{session.durationMinutes} min</span>
+                    <span className="ml-auto text-gray-300 text-xs shrink-0">{expandedSessions.has(session.id) ? '▲' : '▼'}</span>
+                  </div>
+                  {!expandedSessions.has(session.id) && session.summary && (
+                    <p className="text-sm text-gray-600 mt-2 line-clamp-1">{session.summary}</p>
+                  )}
+                  {expandedSessions.has(session.id) && (
+                    <div className="mt-3 flex flex-col gap-3 border-t border-gray-100 pt-3">
+                      {session.summary && <Detail label="Summary" content={session.summary} />}
+                      {session.homework && <Detail label="Homework / Next steps" content={session.homework} />}
+                      {session.transcript && <Detail label="Transcript" content={session.transcript} mono />}
+                      {session.privateNotes && <Detail label="🔒 Private notes" content={session.privateNotes} />}
+                      <div className="flex gap-2 pt-1 flex-wrap">
+                        <Link
+                          to={`/students/${student.id}/session/${session.id}/report`}
+                          className="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+                        >
+                          生成课后报告
+                        </Link>
+                        <Link
+                          to={`/students/${student.id}/session/${session.id}/edit`}
+                          className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+                        >
+                          Edit
+                        </Link>
+                        {confirmDelete === session.id ? (
+                          <>
+                            <button
+                              onClick={() => deleteSession(session.id)}
+                              className="text-xs px-3 py-1.5 rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors"
+                            >
+                              Confirm delete
+                            </button>
+                            <button
+                              onClick={() => setConfirmDelete(null)}
+                              className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+                            >
+                              Cancel
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            onClick={() => setConfirmDelete(session.id)}
+                            className="text-xs px-3 py-1.5 rounded-lg border border-red-200 text-red-400 hover:bg-red-50 transition-colors"
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* EPQ Milestones */}
+      <div className="bg-white rounded-xl border border-gray-200 p-4 mb-5">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-medium text-gray-900 text-sm">EPQ Milestones</h2>
+          <span className="text-xs text-gray-400">{completedCount} / {applicableMilestones.length} completed</span>
+        </div>
+        <div className="h-2 bg-gray-100 rounded-full mb-4 overflow-hidden">
+          <div className="h-full bg-indigo-500 rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {EPQ_MILESTONES.map(m => {
+            const status: MilestoneStatus = student.milestones[m.id] ?? 'not_started'
+            return (
+              <button
+                key={m.id}
+                onClick={() => cycleMilestone(m.id, m.optional)}
+                title={m.optional ? 'Optional — click to cycle (includes N/A)' : 'Click to cycle status'}
+                className={`text-xs px-2.5 py-1.5 rounded-lg border transition-colors cursor-pointer ${MILESTONE_STYLE[status]}`}
+              >
+                {MILESTONE_ICON[status]} {m.label}
+                {m.optional && <span className="ml-1 opacity-50">(opt)</span>}
+              </button>
+            )
+          })}
+        </div>
+        <p className="text-xs text-gray-400 mt-3">
+          Click to cycle: ○ Not started → ◑ In progress → ● Completed
+          <span className="text-gray-300"> · Optional nodes also have — N/A</span>
+        </p>
+      </div>
+      
       {/* Student info table */}
       <div className="bg-white rounded-xl border border-gray-200 mb-5 overflow-hidden">
         <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
@@ -523,12 +683,12 @@ export default function StudentDetailPage() {
                 </td>
               </tr>
             )}
-            <InfoRow label="Gender" value={student.gender} />
+            <InfoRow label="Gender" value={student.gender === 'Male' ? '男' : student.gender === 'Female' ? '女' : student.gender === 'Other' ? '其他' : student.gender} />
             <InfoRow label="School" value={student.school} />
             <InfoRow label="Current Grade" value={student.currentGrade} hint="Year 12 = final highschool year" />
             <InfoRow label="University Enrollment" value={student.universityEnrollment} />
             <InfoRow label="Submission Round" value={student.submissionRound} />
-            <InfoRow label="Taught Element Type" value={student.taughtElementType} />
+            <InfoRow label="理论课班期" value={student.taughtElementType} />
             <InfoRow label="University Aspiration" value={student.universityAspiration} />
             <InfoRow label="Contact" value={student.contact} />
             {student.tags.length > 0 && (
@@ -832,165 +992,9 @@ export default function StudentDetailPage() {
         )}
       </div>
 
-      {/* EPQ Milestones */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4 mb-5">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-medium text-gray-900 text-sm">EPQ Milestones</h2>
-          <span className="text-xs text-gray-400">{completedCount} / {applicableMilestones.length} completed</span>
-        </div>
-        <div className="h-2 bg-gray-100 rounded-full mb-4 overflow-hidden">
-          <div className="h-full bg-indigo-500 rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {EPQ_MILESTONES.map(m => {
-            const status: MilestoneStatus = student.milestones[m.id] ?? 'not_started'
-            return (
-              <button
-                key={m.id}
-                onClick={() => cycleMilestone(m.id, m.optional)}
-                title={m.optional ? 'Optional — click to cycle (includes N/A)' : 'Click to cycle status'}
-                className={`text-xs px-2.5 py-1.5 rounded-lg border transition-colors cursor-pointer ${MILESTONE_STYLE[status]}`}
-              >
-                {MILESTONE_ICON[status]} {m.label}
-                {m.optional && <span className="ml-1 opacity-50">(opt)</span>}
-              </button>
-            )
-          })}
-        </div>
-        <p className="text-xs text-gray-400 mt-3">
-          Click to cycle: ○ Not started → ◑ In progress → ● Completed
-          <span className="text-gray-300"> · Optional nodes also have — N/A</span>
-        </p>
-      </div>
 
-      {/* Sessions */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-medium text-gray-900 text-sm">Session Records ({student.sessions.length})</h2>
-          <Link to={`/students/${student.id}/session/new`} className="text-xs text-indigo-600 hover:underline">+ Add</Link>
-        </div>
 
-        {/* Filter tabs */}
-        <div className="flex gap-1.5 mb-4 flex-wrap">
-          {([
-            ['all', `All (${student.sessions.length})`],
-            ['SA_MEETING', `SA (${student.sessions.filter(s => s.type === 'SA_MEETING').length})`],
-            ['TA_MEETING', `TA (${student.sessions.filter(s => s.type === 'TA_MEETING').length})`],
-            ['THEORY', `Taught Element (${student.sessions.filter(s => s.type === 'THEORY').length})`],
-          ] as const).map(([val, label]) => (
-            <button
-              key={val}
-              onClick={() => setSessionFilter(val)}
-              className={`text-xs px-3 py-1 rounded-full border transition-colors ${
-                sessionFilter === val
-                  ? 'bg-indigo-600 text-white border-indigo-600'
-                  : 'text-gray-500 border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
 
-        {filteredSessions.length === 0 ? (
-          <p className="text-sm text-gray-400 py-4 text-center">No sessions recorded yet.</p>
-        ) : (
-          <>
-            {/* Expand / Collapse All */}
-            <div className="flex justify-end mb-2">
-              <button
-                onClick={() => {
-                  const allExpanded = filteredSessions.every(s => expandedSessions.has(s.id))
-                  if (allExpanded) {
-                    setExpandedSessions(new Set())
-                  } else {
-                    setExpandedSessions(new Set(filteredSessions.map(s => s.id)))
-                  }
-                }}
-                className="text-xs text-gray-400 hover:text-indigo-600 transition-colors px-2 py-1"
-              >
-                {filteredSessions.every(s => expandedSessions.has(s.id)) ? '▲ Collapse All' : '▼ Expand All'}
-              </button>
-            </div>
-
-            <div className="flex flex-col gap-3">
-              {filteredSessions.map(session => (
-                <div key={session.id} className="border border-gray-100 rounded-xl p-3 hover:border-gray-200 transition-colors">
-                  <div
-                    className="flex items-center gap-2 cursor-pointer"
-                    onClick={() => toggleSession(session.id)}
-                  >
-                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${SESSION_COLOR[session.type]}`}>
-                      {SESSION_LABEL[session.type]}
-                    </span>
-                    {session.date > today && (
-                      <span className="text-xs font-medium px-2 py-0.5 rounded-full shrink-0 bg-sky-50 text-sky-500 border border-sky-200">
-                        未开始
-                      </span>
-                    )}
-                    <span className="text-sm font-medium text-gray-800 truncate">
-                      {sessionDisplayTitle(session)}
-                    </span>
-                    <span className="text-xs text-gray-400 shrink-0">
-                      {session.date}{session.time && ` ${session.time}`}
-                    </span>
-                    <span className="text-xs text-gray-400 shrink-0">{session.durationMinutes} min</span>
-                    <span className="ml-auto text-gray-300 text-xs shrink-0">{expandedSessions.has(session.id) ? '▲' : '▼'}</span>
-                  </div>
-                  {!expandedSessions.has(session.id) && session.summary && (
-                    <p className="text-sm text-gray-600 mt-2 line-clamp-1">{session.summary}</p>
-                  )}
-                  {expandedSessions.has(session.id) && (
-                    <div className="mt-3 flex flex-col gap-3 border-t border-gray-100 pt-3">
-                      {session.summary && <Detail label="Summary" content={session.summary} />}
-                      {session.homework && <Detail label="Homework / Next steps" content={session.homework} />}
-                      {session.transcript && <Detail label="Transcript" content={session.transcript} mono />}
-                      {session.privateNotes && <Detail label="🔒 Private notes" content={session.privateNotes} />}
-                      <div className="flex gap-2 pt-1 flex-wrap">
-                        <Link
-                          to={`/students/${student.id}/session/${session.id}/report`}
-                          className="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
-                        >
-                          生成课后报告
-                        </Link>
-                        <Link
-                          to={`/students/${student.id}/session/${session.id}/edit`}
-                          className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
-                        >
-                          Edit
-                        </Link>
-                        {confirmDelete === session.id ? (
-                          <>
-                            <button
-                              onClick={() => deleteSession(session.id)}
-                              className="text-xs px-3 py-1.5 rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors"
-                            >
-                              Confirm delete
-                            </button>
-                            <button
-                              onClick={() => setConfirmDelete(null)}
-                              className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
-                            >
-                              Cancel
-                            </button>
-                          </>
-                        ) : (
-                          <button
-                            onClick={() => setConfirmDelete(session.id)}
-                            className="text-xs px-3 py-1.5 rounded-lg border border-red-200 text-red-400 hover:bg-red-50 transition-colors"
-                          >
-                            Delete
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-      </div>
 
     </div>
     </>

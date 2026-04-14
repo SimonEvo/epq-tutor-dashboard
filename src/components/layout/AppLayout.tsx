@@ -1,5 +1,6 @@
 import { Outlet, Link } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
+import { useStudentStore } from '@/stores/studentStore'
 import { useEffect, useState } from 'react'
 
 function BeijingClock() {
@@ -25,8 +26,16 @@ function BeijingClock() {
   return <span className="text-xs text-gray-400 font-mono tabular-nums">{time} CST</span>
 }
 
+const CAL_LABEL = {
+  idle: null,
+  syncing: '📅 同步中…',
+  ok: '📅 日历已更新',
+  err: '📅 同步失败',
+} as const
+
 export default function AppLayout() {
   const logout = useAuthStore(s => s.logout)
+  const calendarSync = useStudentStore(s => s.calendarSync)
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -37,6 +46,15 @@ export default function AppLayout() {
           <Link to="/settings" className="text-xs text-gray-400 hover:text-gray-700 transition-colors">Settings</Link>
         </div>
         <div className="flex items-center gap-4">
+          {calendarSync !== 'idle' && (
+            <span className={`text-xs transition-all ${
+              calendarSync === 'syncing' ? 'text-gray-400 animate-pulse' :
+              calendarSync === 'ok' ? 'text-green-600' :
+              'text-red-500'
+            }`}>
+              {CAL_LABEL[calendarSync]}
+            </span>
+          )}
           <BeijingClock />
           <button onClick={logout} className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
             Sign out

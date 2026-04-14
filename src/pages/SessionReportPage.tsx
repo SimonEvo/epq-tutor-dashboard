@@ -4,34 +4,65 @@ import { useStudentStore } from '@/stores/studentStore'
 import { generateSessionReport } from '@/lib/claudeService'
 import { getSettings } from '@/lib/settings'
 
+function daysAgo(iso: string): string {
+  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)
+  if (diff === 0) return '今天'
+  if (diff === 1) return '1 天前'
+  return `${diff} 天前`
+}
+
 export default function SessionReportPage() {
   const { id, sessionId } = useParams<{ id: string; sessionId: string }>()
-  const { students } = useStudentStore()
+  const { students, saveStudent } = useStudentStore()
 
   const student = students.find(s => s.id === id)
   const session = student?.sessions.find(s => s.id === sessionId)
 
   const [report, setReport] = useState('')
   const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
+  const [fromCache, setFromCache] = useState(false)
 
-  const generate = async () => {
+  // Load cached report on mount if available
+  useEffect(() => {
+    if (!session) return
+    if (session.generatedReport) {
+      setReport(session.generatedReport)
+      setFromCache(true)
+    } else {
+      generate(false)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const generate = async (force: boolean) => {
     if (!student || !session) return
     setLoading(true)
     setError('')
-    setReport('')
+    setFromCache(false)
+    if (force) setReport('')
     try {
       const text = await generateSessionReport(student, session)
       setReport(text)
+      // Save report back into the session record
+      setSaving(true)
+      const updatedSession = {
+        ...session,
+        generatedReport: text,
+        reportGeneratedAt: new Date().toISOString(),
+      }
+      const updatedSessions = student.sessions.map(s =>
+        s.id === session.id ? updatedSession : s
+      )
+      await saveStudent({ ...student, sessions: updatedSessions })
     } catch (e) {
       setError(String(e))
     } finally {
       setLoading(false)
+      setSaving(false)
     }
   }
-
-  useEffect(() => { generate() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const copy = async () => {
     await navigator.clipboard.writeText(report)
@@ -65,10 +96,10 @@ export default function SessionReportPage() {
       </div>
 
       {/* Action bar */}
-      <div className="flex gap-2 mb-4">
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
         <button
-          onClick={generate}
-          disabled={loading}
+          onClick={() => generate(true)}
+          disabled={loading || saving}
           className="text-sm px-4 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-50 transition-colors"
         >
           {loading ? '生成中…' : report ? '重新生成' : '生成报告'}
@@ -92,6 +123,15 @@ export default function SessionReportPage() {
               </a>
             )}
           </>
+        )}
+        {/* Cache status */}
+        {fromCache && session.reportGeneratedAt && (
+          <span className="text-xs text-gray-400 ml-1">
+            已缓存 · {daysAgo(session.reportGeneratedAt)}生成
+          </span>
+        )}
+        {saving && (
+          <span className="text-xs text-gray-400 ml-1">保存中…</span>
         )}
       </div>
 

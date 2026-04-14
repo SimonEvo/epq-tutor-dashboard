@@ -6,7 +6,7 @@ import StudentFormFields, { useStudentFormState, buildStudentFromForm } from '@/
 export default function EditStudentPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { students, saveStudent, tags: globalTags, fetchTags, saveTags, rounds: globalRounds, fetchRounds, saveRounds, supervisors, fetchSupervisors } = useStudentStore()
+  const { students, saveStudent, deleteStudent, tags: globalTags, fetchTags, saveTags, rounds: globalRounds, fetchRounds, saveRounds, supervisors, fetchSupervisors } = useStudentStore()
 
   useEffect(() => { fetchSupervisors(); fetchRounds() }, [fetchSupervisors, fetchRounds])
 
@@ -15,6 +15,8 @@ export default function EditStudentPage() {
 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   if (!student) {
     return (
@@ -61,7 +63,7 @@ export default function EditStudentPage() {
           onSaveRound={async (round) => { await saveRounds([...globalRounds, round]); await fetchRounds() }}
         />
         {error && <p className="text-red-500 text-sm">{error}</p>}
-        <div className="flex gap-3 pt-2">
+        <div className="flex items-center gap-3 pt-2">
           <button
             type="submit"
             disabled={saving || !formState.name.trim() || !formState.topic.trim()}
@@ -75,8 +77,51 @@ export default function EditStudentPage() {
           >
             Cancel
           </Link>
+          <button
+            type="button"
+            onClick={() => setConfirmDelete(true)}
+            className="ml-auto text-sm px-4 py-2 rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition-colors"
+          >
+            删除学生
+          </button>
         </div>
       </form>
+
+      {confirmDelete && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center px-4">
+          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full flex flex-col gap-4">
+            <h2 className="text-base font-semibold text-gray-900">确认删除学生</h2>
+            <p className="text-sm text-gray-500">
+              即将永久删除学生「{student.name}」及其所有数据（会话记录、里程碑、笔记等）。此操作不可撤销。
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setConfirmDelete(false)}
+                disabled={deleting}
+                className="text-sm px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={async () => {
+                  setDeleting(true)
+                  try {
+                    await deleteStudent(student.id)
+                    navigate('/')
+                  } catch {
+                    setDeleting(false)
+                    setConfirmDelete(false)
+                  }
+                }}
+                disabled={deleting}
+                className="text-sm px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-40 transition-colors"
+              >
+                {deleting ? '删除中…' : '确认删除'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

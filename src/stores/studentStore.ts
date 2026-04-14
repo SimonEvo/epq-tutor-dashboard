@@ -1,6 +1,9 @@
 import { create } from 'zustand'
 import * as dataService from '@/lib/dataService'
+import { publishCalendar } from '@/lib/calendarService'
 import type { Student, Supervisor } from '@/types'
+
+export type CalendarSyncStatus = 'idle' | 'syncing' | 'ok' | 'err'
 
 interface StudentState {
   students: Student[]
@@ -9,6 +12,8 @@ interface StudentState {
   supervisors: Supervisor[]
   isLoading: boolean
   error: string | null
+  calendarSync: CalendarSyncStatus
+  calendarUrl: string | null
   fetchAll: () => Promise<void>
   fetchTags: () => Promise<void>
   fetchRounds: () => Promise<void>
@@ -28,12 +33,20 @@ export const useStudentStore = create<StudentState>((set, get) => ({
   supervisors: [],
   isLoading: false,
   error: null,
+  calendarSync: 'idle',
+  calendarUrl: null,
 
   fetchAll: async () => {
     set({ isLoading: true, error: null })
     try {
       const students = await dataService.listStudents()
-      set({ students, isLoading: false })
+      // Only overwrite existing data if we got a non-empty list, or if we had nothing before.
+      // This prevents a transient GitHub API 404 from wiping an already-loaded student list.
+      if (students.length > 0 || get().students.length === 0) {
+        set({ students, isLoading: false })
+      } else {
+        set({ isLoading: false })
+      }
     } catch (e) {
       set({ error: String(e), isLoading: false })
     }
@@ -58,11 +71,19 @@ export const useStudentStore = create<StudentState>((set, get) => ({
     await dataService.saveStudent(student)
     const students = get().students
     const idx = students.findIndex(s => s.id === student.id)
-    if (idx >= 0) {
-      set({ students: students.map(s => s.id === student.id ? student : s) })
-    } else {
-      set({ students: [...students, student] })
-    }
+    const updatedStudents = idx >= 0
+      ? students.map(s => s.id === student.id ? student : s)
+      : [...students, student]
+    set({ students: updatedStudents, calendarSync: 'syncing' })
+    publishCalendar(updatedStudents)
+      .then((url) => {
+        set({ calendarSync: 'ok', ...(url ? { calendarUrl: url } : {}) })
+        setTimeout(() => set({ calendarSync: 'idle' }), 3000)
+      })
+      .catch(() => {
+        set({ calendarSync: 'err' })
+        setTimeout(() => set({ calendarSync: 'idle' }), 5000)
+      })
   },
 
   deleteStudent: async (id: string) => {

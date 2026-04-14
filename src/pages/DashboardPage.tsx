@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useStudentStore } from '@/stores/studentStore'
 import StudentCard from '@/components/StudentCard'
-import type { Student } from '@/types'
+import AICommandCenter from '@/components/AICommandCenter'
+import type { Student, WeeklyReportData } from '@/types'
 import { formatHours } from '@/lib/formatters'
+import { generateWeeklyReport, getWeeklyReportData } from '@/lib/weeklyReportService'
 
 export default function DashboardPage() {
   const { students, tags, rounds, supervisors, isLoading, error, fetchAll, fetchTags, fetchRounds, fetchSupervisors } = useStudentStore()
@@ -16,11 +18,19 @@ export default function DashboardPage() {
   const [showStats, setShowStats] = useState(false)
   const [statsCutoff, setStatsCutoff] = useState(new Date().toISOString().slice(0, 10))
 
+  // Weekly report modal
+  const [showReport, setShowReport] = useState(false)
+  const [weeklyReport, setWeeklyReport] = useState<WeeklyReportData | null>(null)
+  const [generatingReport, setGeneratingReport] = useState(false)
+  const [reportError, setReportError] = useState('')
+
   useEffect(() => {
     fetchAll()
     fetchTags()
     fetchRounds()
     fetchSupervisors()
+    // Load cached weekly report silently
+    getWeeklyReportData().then(d => { if (d) setWeeklyReport(d) }).catch(() => {})
   }, [fetchAll, fetchTags, fetchRounds, fetchSupervisors])
 
   const filtered = students
@@ -57,6 +67,19 @@ export default function DashboardPage() {
       return { s, supervisor, sessionCount, totalMins, pastSaHours, saRemaining }
     })
     .sort((a, b) => a.s.name.localeCompare(b.s.name))
+
+  const handleGenerateReport = async () => {
+    setGeneratingReport(true)
+    setReportError('')
+    try {
+      const result = await generateWeeklyReport(students)
+      setWeeklyReport(result)
+    } catch (e) {
+      setReportError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setGeneratingReport(false)
+    }
+  }
 
   const copyStatsText = () => {
     const header = `课时统计（截止 ${statsCutoff}）\n${'─'.repeat(60)}`
@@ -155,12 +178,82 @@ export default function DashboardPage() {
       </div>
     )}
 
+    {/* Weekly Report modal */}
+    {showReport && (
+      <div className="fixed inset-0 z-50 bg-black/40 flex items-start justify-center pt-10 px-4 pb-10">
+        <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl flex flex-col max-h-[85vh]">
+          {/* Header */}
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
+            <div>
+              <h2 className="text-base font-semibold text-gray-900">导师周报</h2>
+              {weeklyReport && (
+                <p className="text-xs text-gray-400 mt-0.5">
+                  上次生成：{new Date(weeklyReport.generatedAt).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  {weeklyReport.cache.students && ` · 共 ${Object.keys(weeklyReport.cache.students).length} 名学生`}
+                </p>
+              )}
+            </div>
+            <button onClick={() => setShowReport(false)} className="text-gray-400 hover:text-gray-600 text-lg leading-none">✕</button>
+          </div>
+
+          {/* Actions */}
+          <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-3 shrink-0">
+            <button
+              onClick={handleGenerateReport}
+              disabled={generatingReport || students.length === 0}
+              className="text-sm px-4 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-40 transition-colors"
+            >
+              {generatingReport ? '生成中…' : weeklyReport ? '重新生成' : '生成周报'}
+            </button>
+            {weeklyReport && (
+              <button
+                onClick={() => navigator.clipboard.writeText(weeklyReport.content)}
+                className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                复制
+              </button>
+            )}
+            {reportError && <span className="text-xs text-red-500">{reportError}</span>}
+            {students.length === 0 && <span className="text-xs text-gray-400">请先从 Dashboard 加载学生数据</span>}
+          </div>
+
+          {/* Content */}
+          <div className="overflow-y-auto flex-1 px-5 py-4">
+            {generatingReport && (
+              <div className="flex flex-col items-center justify-center py-16 gap-3">
+                <div className="text-2xl animate-pulse">🔍</div>
+                <p className="text-sm text-gray-400">正在分析 {students.length} 名学生的进度…</p>
+              </div>
+            )}
+            {!generatingReport && weeklyReport && (
+              <pre className="text-sm text-gray-800 whitespace-pre-wrap font-sans leading-relaxed">
+                {weeklyReport.content}
+              </pre>
+            )}
+            {!generatingReport && !weeklyReport && (
+              <p className="text-sm text-gray-400 text-center py-16">点击「生成周报」开始分析</p>
+            )}
+          </div>
+        </div>
+      </div>
+    )}
+
     <div className="p-6">
+      <AICommandCenter />
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-semibold text-gray-900">
           Students <span className="text-gray-400 font-normal text-lg">({filtered.length}{filtered.length !== students.length ? ` / ${students.length}` : ''})</span>
         </h1>
         <div className="flex gap-2">
+          <button
+            onClick={() => { setShowReport(true) }}
+            className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors relative"
+          >
+            进度提醒
+            {weeklyReport && (
+              <span className="absolute -top-1 -right-1 w-2 h-2 bg-indigo-500 rounded-full" />
+            )}
+          </button>
           <button
             onClick={() => setShowStats(true)}
             className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"

@@ -573,11 +573,7 @@ export default function StudentDetailPage() {
                   )}
                   {expandedSessions.has(session.id) && (
                     <div className="mt-3 flex flex-col gap-3 border-t border-gray-100 pt-3">
-                      {session.summary && <Detail label="Summary" content={session.summary} />}
-                      {session.homework && <Detail label="Homework / Next steps" content={session.homework} />}
-                      {session.transcript && <Detail label="Transcript" content={session.transcript} mono />}
-                      {session.privateNotes && <Detail label="🔒 Private notes" content={session.privateNotes} />}
-                      <div className="flex gap-2 pt-1 flex-wrap">
+                      <div className="flex gap-2 flex-wrap">
                         <Link
                           to={`/students/${student.id}/session/${session.id}/report`}
                           className="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
@@ -614,6 +610,10 @@ export default function StudentDetailPage() {
                           </button>
                         )}
                       </div>
+                      {session.summary && <Detail label="Summary" content={session.summary} />}
+                      {session.homework && <Detail label="Homework / Next steps" content={session.homework} />}
+                      {session.transcript && <Detail label="Transcript" content={session.transcript} mono />}
+                      {session.privateNotes && <Detail label="🔒 Private notes" content={session.privateNotes} />}
                     </div>
                   )}
                 </div>

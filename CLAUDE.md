@@ -1,116 +1,46 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
----
-
 ## Project Overview
-
-EPQ student tutoring progress management system for a single academic tutor (TA). Manages up to 30 students, each with a unique EPQ research topic. The tutor uses this daily to track session records, SA hours, and EPQ milestone progress, and occasionally exports formatted summaries for parents or marketing.
-
----
+EPQ student tutoring progress management system for a single tutor. Up to 30 students. Daily use for session records, SA hours, and EPQ milestone tracking. Occasional export for parents/marketing.
 
 ## Architecture
+Two-repo design:
+- `epq-tutor-dashboard` (this repo) — React frontend, deployed to GitHub Pages
+- `epq-tutor-data` (private) — all student JSON data files
 
-### Two-Repo Design
+Frontend reads/writes via GitHub REST API (Octokit). Auth = GitHub PAT stored in localStorage.
 
-| Repo | Purpose | Visibility |
-|------|---------|------------|
-| `epq-tutor-dashboard` (this repo) | React frontend + GitHub Pages | Public |
-| `epq-tutor-data` | All student JSON data files | Private |
+## Tech Stack
+React 18 + Vite + TypeScript + Tailwind CSS + shadcn/ui + Zustand + React Router v6 + Octokit
 
-The frontend reads and writes student data by calling the **GitHub REST API** (via Octokit) against the private data repo. Authentication is a GitHub Personal Access Token (PAT) stored in `localStorage` — this is the user's "password" to the system.
-
-### Tech Stack
-
-- **React 18** + **Vite** — framework and build tool
-- **Tailwind CSS** + **shadcn/ui** — styling and component library
-- **Zustand** — global state management
-- **React Router v6** — client-side routing
-- **Octokit** (`@octokit/rest`) — GitHub API client for data persistence
-- Deployed to **GitHub Pages** (static)
-
-### Data Layer
-
-All data lives as JSON files in the private `epq-tutor-data` repo. The data layer is intentionally isolated behind an abstraction (`src/lib/dataService.ts`) so the GitHub API can be swapped for a real backend later without touching UI code.
-
-Key JSON structures:
-
-```
-epq-tutor-data/
-  students/
-    {studentId}.json    # One file per student (profile + all session records)
-  config/
-    tags.json           # Global tag library
-    milestones.json     # EPQ milestone definitions (ordered)
-```
-
-### EPQ Milestones (Ordered)
-
-Fixed sequence built into `config/milestones.json`. Each student tracks independent completion status per milestone:
-
-```
-问卷(如有) → Intro → 文综 → 方法论 → 结果 → 讨论 → 反思 → 结语 →
-文献 → 摘要 → 表1 → 表2 → 表4 → 表5 → 表6 → 表7 → 表11 → 答辩 → 提交
-```
-
-"问卷" is optional — when marked N/A it is excluded from progress percentage calculation.
-
-### Session Types
-
-Three session types share one record schema: `SA_MEETING`, `TA_MEETING`, `THEORY`. SA sessions auto-decrement the student's remaining SA hours. The `transcript` field accepts plain text (paste from Zoom); file upload and API ingestion are reserved for future extension.
-
-### Export / Share
-
-The export function generates formatted text (with emoji) from a student's public-facing data. The `privateNotes` field on both student profiles and session records is **always excluded** from export output — enforce this at the serialization layer, not the UI layer.
-
----
+## Data Structure
+See `epq-tutor-data/` for actual files:
+- `students/{studentId}.json` — profile + all session records
+- `config/tags.json` — global tag library
+- `config/milestones.json` — EPQ milestone definitions (ordered)
 
 ## Commands
-
 ```bash
-# Install dependencies
-npm install
-
-# Start dev server (localhost:5173)
-npm run dev
-
-# Build for production
-npm run build
-
-# Preview production build locally
-npm run preview
-
-# Deploy to GitHub Pages
-npm run deploy        # runs: vite build && gh-pages -d dist
-
-# Lint
+npm run dev        # localhost:5173
+npm run deploy     # build + push to GitHub Pages
 npm run lint
-
-# Type-check
 npm run typecheck
 ```
+**After every code change: run `npm run deploy`. Verify on GitHub Pages URL, not localhost.**
 
-> **Workflow:** After every code change, always run `npm run deploy` to push the updated build to GitHub Pages. The user verifies changes via the live GitHub Pages URL, not locally.
+## Hard Constraints
+- `privateNotes` must NEVER appear in export output — filter at serialization layer in dataService.ts
+- All GitHub API calls go through `src/lib/dataService.ts` only — components never call Octokit directly
+- PAT only in localStorage — never log it, never in error messages
+- SA session records are immutable after save (require explicit confirmation to edit)
+- No server-side code in this repo — everything is static
 
----
+## Completed Features
+认证、数据层隔离、GitHub Pages 部署 / Dashboard 学生卡片、筛选排序、课时统计、AI 周报、AI 指令中心 / 新建&编辑学生、Brief Note 内联编辑、可用时间备注、标签系统 / Session 增删改查、三类 session、自动编号、筛选折叠、未开始 badge、SA 课时自动计算 / 单节课 AI 报告、进度报告 / EPQ 里程碑追踪、N/A 支持、进度百分比 / 个人日志内联编辑、导出排除 privateNotes / 思维导图创建编辑、全屏、导出 SVG/PNG / 督导列表&详情页 / ICS 日历生成、Secret Gist 订阅链接 / AI 配置、PAT 配置
 
-## Key Design Constraints
+## Current Status
+### In Progress
+- （开始新任务前填这里）
 
-- **No server-side code** in this repo. Everything is static. All dynamic behavior goes through the GitHub API.
-- **`privateNotes` must never appear in export output.** This is a hard requirement — student data must be sanitizable before sharing with parents or marketing.
-- **SA hour tracking** is used for payroll verification. Session records that decrement SA hours must be immutable after saving (or require explicit edit confirmation).
-- **Data layer isolation**: all GitHub API calls must go through `src/lib/dataService.ts`. Components never call Octokit directly.
-- **PAT is the only credential.** It is stored in `localStorage` under a fixed key. Never log it, never include it in error messages, never send it anywhere except GitHub API headers.
-
----
-
-## Planned Extension Points
-
-These are not built in v1 but the code should not foreclose them:
-
-- Session transcript: `transcript` field is plain text → later extend to support file upload or Zoom API ingestion
-- Data backend: `dataService.ts` abstracts GitHub API → can be reimplemented against a self-hosted REST API
-- Export format: plain text → later extend to PDF or shareable link
-- Auth: PAT in localStorage → later support OAuth or server-side sessions
-- Mobile: responsive layout from day one, no mobile-specific features required yet
+### Next Up
+- （填这里）

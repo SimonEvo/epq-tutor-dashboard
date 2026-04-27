@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import type { Student } from '@/types'
 import { EPQ_MILESTONES } from '@/config'
-import { formatHours } from '@/lib/formatters'
+import { formatHours, isSessionStarted } from '@/lib/formatters'
 
 interface Props {
   student: Student
@@ -14,19 +14,17 @@ const SESSION_LABEL: Record<string, string> = {
 }
 
 export default function StudentCard({ student }: Props) {
-  const todayStr = new Date().toISOString().slice(0, 10)
-
-  // Last SA/TA meeting: past only (date <= today), exclude THEORY
+  // Last SA/TA meeting: past only (started), exclude THEORY
   const lastMeeting = [...student.sessions]
-    .filter(s => (s.type === 'SA_MEETING' || s.type === 'TA_MEETING') && s.date <= todayStr)
+    .filter(s => (s.type === 'SA_MEETING' || s.type === 'TA_MEETING') && isSessionStarted(s))
     .sort((a, b) => b.date.localeCompare(a.date))[0]
   const daysSinceLast = lastMeeting
     ? Math.floor((Date.now() - new Date(lastMeeting.date).getTime()) / 86400000)
     : null
 
-  // Next SA meeting: future SA sessions only (date > today), take earliest
+  // Next SA meeting: not yet started, take earliest
   const nextSaMeeting = [...student.sessions]
-    .filter(s => s.type === 'SA_MEETING' && s.date > todayStr)
+    .filter(s => s.type === 'SA_MEETING' && !isSessionStarted(s))
     .sort((a, b) => a.date.localeCompare(b.date))[0]
 
   const applicableMilestones = EPQ_MILESTONES.filter(
@@ -37,14 +35,14 @@ export default function StudentCard({ student }: Props) {
     ? Math.round((completed / applicableMilestones.length) * 100)
     : 0
 
-  // Dots: count past SA sessions only — SESSION count for dimming (次数)
+  // Dots: count started SA sessions only — SESSION count for dimming (次数)
   const pastSaCount = student.sessions.filter(
-    s => s.type === 'SA_MEETING' && s.date <= todayStr
+    s => s.type === 'SA_MEETING' && isSessionStarted(s)
   ).length
 
-  // Label: remaining HOURS from past sessions only (小时数，与次数独立计算)
+  // Label: remaining HOURS from started sessions only (小时数，与次数独立计算)
   const pastSaHoursUsed = student.sessions
-    .filter(s => s.type === 'SA_MEETING' && s.date <= todayStr)
+    .filter(s => s.type === 'SA_MEETING' && isSessionStarted(s))
     .reduce((sum, s) => sum + s.durationMinutes / 60, 0)
   const saHoursRemaining = student.saHoursTotal - pastSaHoursUsed
   const saLow = saHoursRemaining <= 2

@@ -1,6 +1,7 @@
 import { getSettings } from './settings'
 import { EPQ_MILESTONES } from '@/config'
 import type { Student, SessionRecord } from '@/types'
+import { isSessionStarted } from './formatters'
 
 async function callAI(prompt: string): Promise<string> {
   const { aiApiKey, aiModel, aiBaseUrl } = getSettings()
@@ -173,6 +174,7 @@ export async function generateSessionReport(student: Student, session: SessionRe
 
 要求：
 - 用中文撰写，语言专业流畅、易于家长阅读
+- 不要出现Markdown结构(比如星号)
 - 结构清晰，适合直接粘贴到腾讯文档
 - 每个板块标题前使用 emoji，整体排版美观易读
 - 如提供了会议记录／逐字稿，请以此为主要依据，优先从中提炼内容
@@ -213,7 +215,7 @@ export async function generateProgressReport(student: Student): Promise<string> 
 
   // SA hours — integer count of SA sessions (consistent with session report display)
   const pastSaCount = student.sessions.filter(
-    s => s.type === 'SA_MEETING' && s.date <= today
+    s => s.type === 'SA_MEETING' && isSessionStarted(s)
   ).length
   const saRemaining = student.saHoursTotal - pastSaCount
 
@@ -230,8 +232,8 @@ export async function generateProgressReport(student: Student): Promise<string> 
 
   // All sessions sorted by date
   const sorted = [...student.sessions].sort((a, b) => a.date.localeCompare(b.date))
-  const pastSessions   = sorted.filter(s => s.date <= today)
-  const futureSessions = sorted.filter(s => s.date > today)
+  const pastSessions   = sorted.filter(s => isSessionStarted(s))
+  const futureSessions = sorted.filter(s => !isSessionStarted(s))
 
   // Full session title list (all past sessions)
   const allTitles = pastSessions.map(s => {
@@ -273,6 +275,7 @@ export async function generateProgressReport(student: Student): Promise<string> 
 
 要求：
 - 用中文撰写，专业流畅，适合家长阅读
+- 不要出现Markdown结构(比如星号)
 - 结构清晰，适合直接粘贴到腾讯文档
 - 每个板块标题前使用 emoji，整体排版美观易读
 - 严格按照以下结构输出，不要多余的解释：

@@ -6,7 +6,7 @@ import { EPQ_MILESTONES } from '@/config'
 import type { Student, MilestoneStatus, SessionType, SessionRecord, PersonalEntry, MindMap } from '@/types'
 import MarkmapView, { type MarkmapHandle } from '@/components/MarkmapView'
 import MindMapEditor from '@/components/MindMapEditor'
-import { formatHours } from '@/lib/formatters'
+import { formatHours, isSessionStarted } from '@/lib/formatters'
 
 const SESSION_LABEL: Record<SessionType, string> = {
   SA_MEETING: 'SA',
@@ -335,9 +335,9 @@ export default function StudentDetailPage() {
     return `${TYPE_PREFIX[s.type]} #${sessionNumbers[s.id]}`
   }
 
-  // Last (past) and Next (future) sessions — reuse `today` defined above
-  const pastSessions = sortedSessions.filter(s => s.date <= today)
-  const futureSessions = sortedSessions.filter(s => s.date > today)
+  // Last (started) and Next (not yet started) sessions — time-aware
+  const pastSessions = sortedSessions.filter(s => isSessionStarted(s))
+  const futureSessions = sortedSessions.filter(s => !isSessionStarted(s))
   const lastSession = pastSessions[0] ?? null
   const nextSession = futureSessions.length > 0 ? futureSessions[futureSessions.length - 1] : null
 
@@ -347,7 +347,7 @@ export default function StudentDetailPage() {
 
   // SA hours remaining: count only past sessions, no intermediate rounding (let formatHours handle precision)
   const pastSaHoursUsed = student.sessions
-    .filter(s => s.type === 'SA_MEETING' && s.date <= today)
+    .filter(s => s.type === 'SA_MEETING' && isSessionStarted(s))
     .reduce((sum, s) => sum + s.durationMinutes / 60, 0)
   const saRemaining = student.saHoursTotal - pastSaHoursUsed
   const supervisor = supervisors.find(s => s.id === student.supervisorId)
@@ -554,7 +554,7 @@ export default function StudentDetailPage() {
                     <span className={`text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ${SESSION_COLOR[session.type]}`}>
                       {SESSION_LABEL[session.type]}
                     </span>
-                    {session.date > today && (
+                    {!isSessionStarted(session) && (
                       <span className="text-xs font-medium px-2 py-0.5 rounded-full shrink-0 bg-sky-50 text-sky-500 border border-sky-200">
                         未开始
                       </span>

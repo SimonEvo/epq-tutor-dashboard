@@ -2,6 +2,7 @@ import { getSettings } from './settings'
 import { EPQ_MILESTONES } from '@/config'
 import { getWeeklyReportData, saveWeeklyReportData } from './dataService'
 import type { Student, StudentReportCacheEntry, WeeklyReportData } from '@/types'
+import { isSessionStarted } from './formatters'
 
 // ── Alias helpers ─────────────────────────────────────────────────────────────
 
@@ -64,9 +65,9 @@ function decodeAliases(text: string, reverseMap: Record<string, string>): string
 
 // ── Student data summariser ───────────────────────────────────────────────────
 
-function summariseStudent(s: Student, today: string, changed: boolean): string {
+function summariseStudent(s: Student, _today: string, changed: boolean): string {
   const pastSA = s.sessions
-    .filter(x => x.type === 'SA_MEETING' && x.date <= today)
+    .filter(x => x.type === 'SA_MEETING' && isSessionStarted(x))
     .sort((a, b) => b.date.localeCompare(a.date))
 
   const saUsed = pastSA.length
@@ -77,7 +78,7 @@ function summariseStudent(s: Student, today: string, changed: boolean): string {
     : null
 
   const nextSA = s.sessions
-    .filter(x => x.type === 'SA_MEETING' && x.date > today)
+    .filter(x => x.type === 'SA_MEETING' && !isSessionStarted(x))
     .sort((a, b) => a.date.localeCompare(b.date))[0]
 
   // Milestones
